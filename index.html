@@ -43,6 +43,7 @@
         .btn-secondary { background: var(--bg); color: var(--fg); border: 1px solid var(--border); }
         .btn-danger { background: rgba(220, 53, 69, 0.1); color: var(--danger); }
         .btn-success { background: rgba(25, 135, 84, 0.1); color: var(--success); }
+        .btn-warning { background: rgba(255, 193, 7, 0.1); color: #d39e00; }
         
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
         
@@ -98,7 +99,6 @@
         .cart-input { width: 55px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 2px; text-align: center; font-size: 11px; }
         .cart-input:focus { outline: none; border-color: var(--accent); }
         
-        /* Print Area Styles */
         #printArea {
             display: none;
             position: fixed; inset: 0;
@@ -148,46 +148,12 @@
         .print-controls .btn { width: 100%; }
         @media (min-width: 400px) { .print-controls .btn { width: auto; } }
 
-        /* ROBUST PRINT CSS */
         @media print {
-            body { 
-                background: white !important; 
-                margin: 0 !important; 
-                padding: 0 !important;
-                -webkit-print-color-adjust: exact !important; 
-                print-color-adjust: exact !important;
-            }
-            /* Hide everything else */
-            #appContainer, .sidebar, header, .modal-overlay, #scannerModal, .overlay-bg { 
-                display: none !important; 
-                visibility: hidden !important;
-                opacity: 0 !important;
-            }
-            
-            /* Show only print area */
-            #printArea { 
-                display: block !important; 
-                position: absolute !important; 
-                left: 0 !important; 
-                top: 0 !important; 
-                width: 100% !important; 
-                height: auto !important; 
-                background: white !important; 
-                padding: 0 !important;
-                margin: 0 !important;
-                overflow: visible !important;
-            }
-            .print-container { 
-                box-shadow: none !important; 
-                margin: 0 !important; 
-                max-width: 100% !important; 
-                min-height: auto !important; 
-                border-radius: 0 !important; 
-                border: none !important;
-            }
-            .print-controls { 
-                display: none !important; 
-            }
+            body { background: white !important; margin: 0 !important; padding: 0 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            #appContainer, .sidebar, header, .modal-overlay, #scannerModal, .overlay-bg { display: none !important; visibility: hidden !important; opacity: 0 !important; }
+            #printArea { display: block !important; position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; height: auto !important; background: white !important; padding: 0 !important; margin: 0 !important; overflow: visible !important; }
+            .print-container { box-shadow: none !important; margin: 0 !important; max-width: 100% !important; min-height: auto !important; border-radius: 0 !important; border: none !important; }
+            .print-controls { display: none !important; }
         }
         
         #qrcode { width: 100px; height: 100px; margin: 5px auto; background: white; padding: 5px; border-radius: 8px; }
@@ -260,7 +226,6 @@
 
     <div id="printArea"></div>
     
-    <!-- Scanner Modal -->
     <div id="scannerModal" class="modal-overlay">
         <div class="modal-content" style="max-width: 400px;">
             <div class="flex justify-between items-center mb-4">
@@ -304,7 +269,14 @@
                 ]);
             }
 
-            if (!DB.get('settings')) DB.set('settings', { shopName: 'ShopEase', address: 'Main Street', phone: '555-123-4567', upiId: 'example@upi', shopImage: '', openingCash: 0 });
+            let settings = DB.get('settings');
+            if (!settings) {
+                DB.set('settings', { shopName: 'ShopEase', address: 'Main Street', phone: '555-123-4567', upiId: 'example@upi', shopImage: '', openingCash: 0, nextBillId: 1 });
+            } else if (settings.nextBillId === undefined) {
+                settings.nextBillId = 1;
+                DB.set('settings', settings);
+            }
+
             if (!DB.get('categories')) DB.set('categories', [{ id: 1, name: 'Electronics' }, { id: 2, name: 'Groceries' }]);
             if (!DB.get('items')) DB.set('items', [
                 { id: 1, name: 'Wireless Mouse', code: 'WM001', categoryId: 1, price: 599, mrp: 650, cost: 400, stock: 50, image: '' },
@@ -317,6 +289,8 @@
             if (!DB.get('expenses')) DB.set('expenses', []);
             if (!DB.get('trash')) DB.set('trash', []);
             if (!DB.get('stockClosings')) DB.set('stockClosings', []);
+            if (!DB.get('withdrawals')) DB.set('withdrawals', []); 
+            if (!DB.get('priceHistory')) DB.set('priceHistory', []); 
         }
         initDB();
 
@@ -377,11 +351,13 @@
 
         function getCategoryName(id) { return (DB.get('categories') || []).find(c => c.id === id)?.name || 'N/A'; }
 
+        // ===== DASHBOARD =====
         function renderDashboard() {
             const tx = DB.get('transactions') || [];
             const expenses = DB.get('expenses') || [];
             const ledger = DB.get('ledger') || [];
             const purchases = DB.get('purchases') || [];
+            const withdrawals = DB.get('withdrawals') || [];
             const settings = DB.get('settings') || {};
             const today = new Date().toDateString();
             
@@ -396,10 +372,11 @@
             const todayReceived = ledger.filter(l => l.type === 'payment' && new Date(l.date).toDateString() === today).reduce((a, l) => a + l.amount, 0);
             const todayCashPurchases = purchases.filter(p => new Date(p.date).toDateString() === today && p.payType === 'cash').reduce((a, p) => a + p.totalCost, 0);
             const todaySupplierPayments = ledger.filter(l => l.type === 'supplier_payment' && new Date(l.date).toDateString() === today).reduce((a, l) => a + l.amount, 0);
+            const todayWithdrawals = withdrawals.filter(w => new Date(w.date).toDateString() === today).reduce((a, w) => a + w.amount, 0);
             
             const todayNetProfit = todayGrossProfit - todayExpenses;
             const cashInflow = todayCashSales + todayReceived;
-            const cashOutflow = todayExpenses + todayCashPurchases + todaySupplierPayments;
+            const cashOutflow = todayExpenses + todayCashPurchases + todaySupplierPayments + todayWithdrawals;
             const todayNetCashFlow = cashInflow - cashOutflow;
             const closingCash = openingCash + todayNetCashFlow;
 
@@ -410,6 +387,8 @@
             expenses.filter(e => new Date(e.date).toDateString() === today).forEach(e => { flowItems.push({ time: new Date(e.date), desc: `Expense: ${e.description}`, amount: e.amount, type: 'out' }); });
             purchases.filter(p => new Date(p.date).toDateString() === today && p.payType === 'cash').forEach(p => { flowItems.push({ time: new Date(p.date), desc: `Purchase: ${p.itemName}`, amount: p.totalCost, type: 'out' }); });
             ledger.filter(l => l.type === 'supplier_payment' && new Date(l.date).toDateString() === today).forEach(l => { flowItems.push({ time: new Date(l.date), desc: `Supplier Paid`, amount: l.amount, type: 'out' }); });
+            withdrawals.filter(w => new Date(w.date).toDateString() === today).forEach(w => { flowItems.push({ time: new Date(w.date), desc: `Withdrawal: ${w.note || ''}`, amount: w.amount, type: 'out' }); });
+            
             flowItems.sort((a, b) => b.time - a.time);
 
             document.getElementById('pageContent').innerHTML = `
@@ -420,10 +399,34 @@
                     <div class="card border-[var(--accent)]"><p class="text-[var(--muted)] text-xs mb-1">Closing Cash</p><p class="font-display text-2xl font-bold">${closingCash >= 0 ? '' : '-'}${CURRENCY}${Math.abs(closingCash).toFixed(0)}</p><p class="text-[8px] text-[var(--muted)]">Open: ${CURRENCY}${openingCash.toFixed(0)} | Net: ${todayNetCashFlow >= 0 ? '+' : '-'}${CURRENCY}${Math.abs(todayNetCashFlow).toFixed(0)}</p></div>
                 </div>
                 <div class="grid lg:grid-cols-2 gap-4">
-                    <div class="card"><h3 class="font-display font-bold mb-3">Quick Actions</h3><div class="grid grid-cols-2 gap-3"><button onclick="showPage('billing')" class="btn btn-primary py-4">New Bill</button><button onclick="showPage('purchases')" class="btn btn-secondary py-4">Add Stock</button></div></div>
+                    <div class="card"><h3 class="font-display font-bold mb-3">Quick Actions</h3><div class="grid grid-cols-2 gap-3"><button onclick="showPage('billing')" class="btn btn-primary py-4">New Bill</button><button onclick="showPage('purchases')" class="btn btn-secondary py-4">Add Stock</button><button onclick="openWithdrawModal()" class="btn btn-warning py-4">Withdraw Cash</button></div></div>
                     <div class="card"><h3 class="font-display font-bold mb-3">Today's Cash Flow</h3><div class="space-y-2 max-h-48 overflow-y-auto">${flowItems.length > 0 ? flowItems.map(f => `<div class="flex justify-between items-center p-2 bg-[var(--bg)] rounded-lg"><div class="flex-1"><p class="text-sm font-medium">${f.desc}</p><p class="text-[10px] text-[var(--muted)]">${f.time.toLocaleTimeString()}</p></div><p class="font-display font-bold text-sm ${f.type === 'in' ? 'text-[var(--success)]' : f.type === 'out' ? 'text-[var(--danger)]' : 'text-[var(--accent)]'}">${f.type === 'in' ? '+' : f.type === 'out' ? '-' : ''}${CURRENCY}${f.amount.toFixed(0)}</p></div>`).join('') : '<p class="text-center text-[var(--muted)] py-4">No cash movement today</p>'}</div></div>
                 </div>
             `;
+        }
+
+        function openWithdrawModal() {
+            openModal(`
+                <h3 class="font-display font-bold mb-4">Record Cash Withdrawal</h3>
+                <div class="space-y-3">
+                    <input type="number" id="withdrawAmount" class="input-field" placeholder="Amount">
+                    <input type="text" id="withdrawNote" class="input-field" placeholder="Note (e.g., Personal, Bank Deposit)">
+                    <button onclick="saveWithdrawal()" class="btn btn-primary w-full">Save</button>
+                </div>
+            `);
+        }
+
+        function saveWithdrawal() {
+            const amount = parseFloat(document.getElementById('withdrawAmount').value);
+            const note = document.getElementById('withdrawNote').value.trim() || 'Cash Withdrawal';
+            if(!amount || amount <= 0) return alert("Invalid amount");
+            
+            let withdrawals = DB.get('withdrawals') || [];
+            withdrawals.push({ id: Date.now(), amount, note, date: new Date().toISOString() });
+            DB.set('withdrawals', withdrawals);
+            
+            closeModal();
+            renderDashboard();
         }
 
         function renderStockClose() {
@@ -449,21 +452,110 @@
         function closeCurrentMonth() { if(!confirm('This will save the current stock status as a monthly closing. Continue?')) return; const items = DB.get('items') || []; const closings = DB.get('stockClosings') || []; closings.push({ id: Date.now(), date: new Date().toISOString(), items: items.map(i => ({id: i.id, name: i.name, stock: i.stock, cost: i.cost})) }); DB.set('stockClosings', closings); alert('Month closed successfully!'); renderStockClose(); }
         function viewClosingDetails(id) { const closings = DB.get('stockClosings') || []; const closing = closings.find(c => c.id === id); if(!closing) return; const totalVal = closing.items.reduce((a,i)=>a+(i.cost*i.stock),0); openModal(`<h3 class="font-display font-bold mb-2">Closing Details</h3><p class="text-xs text-[var(--muted)] mb-4">${new Date(closing.date).toLocaleString()}</p><div class="max-h-64 overflow-y-auto"><table class="w-full text-xs"><thead><tr class="border-b"><th class="text-left py-1">Item</th><th class="text-right">Stock</th><th class="text-right">Cost</th><th class="text-right">Value</th></tr></thead><tbody>${closing.items.map(i => `<tr class="border-b"><td class="py-1">${i.name}</td><td class="text-right">${i.stock}</td><td class="text-right">${CURRENCY}${i.cost.toFixed(0)}</td><td class="text-right">${CURRENCY}${(i.stock*i.cost).toFixed(0)}</td></tr>`).join('')}</tbody><tfoot><tr class="font-bold border-t-2 border-[var(--border)]"><td colspan="3" class="py-1 text-right">Total Value:</td><td class="text-right">${CURRENCY}${totalVal.toFixed(0)}</td></tr></tfoot></table></div><button onclick="closeModal()" class="btn btn-secondary w-full mt-4">Close</button>`); }
 
-        function renderItems() { document.getElementById('pageContent').innerHTML = `<div class="flex justify-between items-center mb-4 gap-2"><input type="text" id="itemSearch" class="input-field" placeholder="Search..." oninput="renderItemList()"><button onclick="openItemModal()" class="btn btn-primary text-sm py-2 px-4">Add</button></div><div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3" id="itemList"></div>`; renderItemList(); }
+        // ===== ITEMS =====
+        function renderItems() { 
+            document.getElementById('pageContent').innerHTML = `
+                <div class="flex justify-between items-center mb-4 gap-2 flex-wrap">
+                    <input type="text" id="itemSearch" class="input-field flex-1 min-w-[150px]" placeholder="Search..." oninput="renderItemList()">
+                    <div class="flex gap-2">
+                        <button onclick="exportItems()" class="btn btn-success text-sm py-2 px-4">
+                             <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                             Export Excel
+                        </button>
+                        <button onclick="openItemModal()" class="btn btn-primary text-sm py-2 px-4">Add Item</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3" id="itemList"></div>
+            `; 
+            renderItemList(); 
+        }
+
+        function exportItems() {
+            const items = DB.get('items') || [];
+            const categories = DB.get('categories') || [];
+            if(items.length === 0) return alert("No items to export");
+            let csv = 'ID,Name,Code,Category,MRP,Price,Cost,Stock\n';
+            items.forEach(i => {
+                const catName = categories.find(c => c.id === i.categoryId)?.name || '';
+                const sanitize = (str) => `"${String(str).replace(/"/g, '""')}"`;
+                csv += `${i.id},${sanitize(i.name)},${sanitize(i.code || '')},${sanitize(catName)},${i.mrp || 0},${i.price},${i.cost},${i.stock}\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `items_export_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
         function renderItemList() { const search = (document.getElementById('itemSearch')?.value || '').toLowerCase(); const items = (DB.get('items') || []).filter(i => i.name.toLowerCase().includes(search) || (i.code && i.code.toLowerCase().includes(search))); document.getElementById('itemList').innerHTML = items.map(i => `<div class="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden cursor-pointer hover:shadow-md transition-all" onclick="openItemModal(${i.id})">${i.image ? `<img src="${i.image}" class="w-full h-24 object-cover">` : '<div class="w-full h-24 bg-[var(--bg)] flex items-center justify-center text-[var(--muted)] text-xs">No Image</div>'}<div class="p-2"><div class="flex justify-between items-center"><p class="text-sm font-medium truncate">${i.name}</p><span class="text-[8px] bg-[var(--bg)] text-[var(--muted)] px-1 rounded">${i.code || ''}</span></div><div class="flex justify-between mt-1"><p class="text-[var(--accent)] font-bold">${CURRENCY}${i.price}</p><span class="badge ${i.stock<10?'badge-danger':'badge-success'}">${i.stock}</span></div></div></div>`).join(''); }
         
         function openItemModal(id=null) {
             const item = id ? (DB.get('items')||[]).find(i=>i.id===id) : null;
             const cats = DB.get('categories') || [];
-            openModal(`<h3 class="font-display font-bold mb-4">${item?'Edit':'Add'} Item</h3><div class="space-y-3"><div class="flex items-center gap-3 cursor-pointer" onclick="document.getElementById('imgInput').click()"><div class="w-16 h-16 rounded-lg bg-[var(--bg)] border flex items-center justify-center overflow-hidden" id="imgPreview">${item?.image ? `<img src="${item.image}" class="w-full h-full object-cover">` : '<svg width="24" height="24" fill="none" stroke="var(--muted)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>'}</div><input type="file" id="imgInput" class="hidden" accept="image/*" onchange="previewImg(this)"><span class="text-xs text-[var(--muted)]">Change image</span></div><div class="grid grid-cols-2 gap-3"><input type="text" id="itemName" class="input-field" placeholder="Item name" value="${item?.name||''}"><input type="text" id="itemCode" class="input-field" placeholder="Code (SKU)" value="${item?.code||''}"></div><div class="flex gap-2"><select id="itemCat" class="input-field flex-1"><option value="">Select Category</option>${cats.map(c=>`<option value="${c.id}" ${item?.categoryId==c.id?'selected':''}>${c.name}</option>`).join('')}</select><button onclick="addQuickCategory()" class="btn btn-secondary text-xs px-3">+ New</button></div><div class="grid grid-cols-3 gap-3"><input type="number" id="itemCost" class="input-field" placeholder="Cost" value="${item?.cost||''}"><input type="number" id="itemPrice" class="input-field" placeholder="Price" value="${item?.price||''}"><input type="number" id="itemMrp" class="input-field" placeholder="MRP" value="${item?.mrp||''}"></div><input type="number" id="itemStock" class="input-field" placeholder="Stock Quantity" value="${item?.stock||''}"><div class="flex gap-3 pt-2"><button onclick="saveItem(${id})" class="btn btn-primary flex-1">Save</button>${item ? `<button onclick="deleteItem(${id})" class="btn btn-danger">Del</button>` : ''}<button onclick="closeModal()" class="btn btn-secondary">Cancel</button></div></div>`);
+            openModal(`<h3 class="font-display font-bold mb-4">${item?'Edit':'Add'} Item</h3><div class="space-y-3"><div class="flex items-center gap-3 cursor-pointer" onclick="document.getElementById('imgInput').click()"><div class="w-16 h-16 rounded-lg bg-[var(--bg)] border flex items-center justify-center overflow-hidden" id="imgPreview">${item?.image ? `<img src="${item.image}" class="w-full h-full object-cover">` : '<svg width="24" height="24" fill="none" stroke="var(--muted)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>'}</div><input type="file" id="imgInput" class="hidden" accept="image/*" onchange="previewImg(this)"><span class="text-xs text-[var(--muted)]">Change image</span></div><div class="grid grid-cols-2 gap-3"><input type="text" id="itemName" class="input-field" placeholder="Item name" value="${item?.name||''}"><input type="text" id="itemCode" class="input-field" placeholder="Code (SKU)" value="${item?.code||''}"></div><div class="flex gap-2"><select id="itemCat" class="input-field flex-1"><option value="">Select Category</option>${cats.map(c=>`<option value="${c.id}" ${item?.categoryId==c.id?'selected':''}>${c.name}</option>`).join('')}</select><button onclick="openCategoryModal()" class="btn btn-secondary text-xs px-3">+ Cat</button></div><div class="grid grid-cols-3 gap-3"><input type="number" id="itemCost" class="input-field" placeholder="Cost" value="${item?.cost||''}"><input type="number" id="itemPrice" class="input-field" placeholder="Price" value="${item?.price||''}"><input type="number" id="itemMrp" class="input-field" placeholder="MRP" value="${item?.mrp||''}"></div><input type="number" id="itemStock" class="input-field" placeholder="Stock Quantity" value="${item?.stock||''}"><div class="flex gap-3 pt-2"><button onclick="saveItem(${id})" class="btn btn-primary flex-1">Save</button>${item ? `<button onclick="deleteItem(${id})" class="btn btn-danger">Del</button>` : ''}<button onclick="closeModal()" class="btn btn-secondary">Cancel</button></div></div>`);
             window.tmpImg = item?.image || '';
         }
-        function addQuickCategory() { const name = prompt("Enter new category name:"); if(!name) return; let cats = DB.get('categories') || []; const newCat = { id: Date.now(), name: name.trim() }; cats.push(newCat); DB.set('categories', cats); const sel = document.getElementById('itemCat'); sel.innerHTML = `<option value="">Select Category</option>${cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}`; sel.value = newCat.id; }
+        
         function previewImg(input) { if(input.files[0]) { const reader = new FileReader(); reader.onload = (e) => { window.tmpImg = e.target.result; document.getElementById('imgPreview').innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover">`; }; reader.readAsDataURL(input.files[0]); } }
         function saveItem(id) { const name = document.getElementById('itemName').value.trim(); const code = document.getElementById('itemCode').value.trim(); const categoryId = parseInt(document.getElementById('itemCat').value); const cost = parseFloat(document.getElementById('itemCost').value) || 0; const price = parseFloat(document.getElementById('itemPrice').value) || 0; const mrp = parseFloat(document.getElementById('itemMrp').value) || 0; const stock = parseInt(document.getElementById('itemStock').value) || 0; if(!name || !categoryId) return alert('Name & Category required'); let items = DB.get('items') || []; if(id) { const idx = items.findIndex(i=>i.id===id); items[idx] = {...items[idx], name, code, categoryId, cost, price, mrp, stock, image: window.tmpImg || items[idx].image}; } else { items.push({id: Date.now(), name, code, categoryId, cost, price, mrp, stock, image: window.tmpImg}); } DB.set('items', items); window.tmpImg = ''; closeModal(); renderItems(); }
         function deleteItem(id) { if(!confirm('Move to Trash?')) return; let items = DB.get('items') || []; const item = items.find(i => i.id === id); if(item) { moveToTrash('item', item); DB.set('items', items.filter(i => i.id !== id)); closeModal(); renderItems(); } }
 
-        // ===== PURCHASES =====
+        function openCategoryModal() {
+            const categories = DB.get('categories') || [];
+            openModal(`
+                <h3 class="font-display font-bold mb-4">Manage Categories</h3>
+                <div class="flex gap-2 mb-4">
+                    <input type="text" id="newCatName" class="input-field" placeholder="New category name">
+                    <button onclick="saveNewCategory()" class="btn btn-primary">Add</button>
+                </div>
+                <div class="space-y-2 max-h-60 overflow-y-auto">
+                    ${categories.map(c => `
+                        <div class="flex justify-between items-center p-2 bg-[var(--bg)] rounded-lg">
+                            <input type="text" id="cat-${c.id}" value="${c.name}" class="input-field py-1 text-sm" style="background:transparent; border:none; font-weight:600;">
+                            <div class="flex gap-1">
+                                <button onclick="updateCategory(${c.id})" class="btn btn-secondary text-xs py-1 px-2">Save</button>
+                                <button onclick="deleteCategory(${c.id})" class="btn btn-danger text-xs py-1 px-2">Del</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <button onclick="closeModal()" class="btn btn-secondary w-full mt-4">Close</button>
+            `);
+        }
+
+        function saveNewCategory() {
+            const name = document.getElementById('newCatName').value.trim();
+            if(!name) return;
+            let cats = DB.get('categories') || [];
+            cats.push({ id: Date.now(), name });
+            DB.set('categories', cats);
+            openCategoryModal(); 
+        }
+
+        function updateCategory(id) {
+            const name = document.getElementById(`cat-${id}`).value.trim();
+            if(!name) return alert("Name cannot be empty");
+            let cats = DB.get('categories') || [];
+            const idx = cats.findIndex(c => c.id === id);
+            if(idx !== -1) {
+                cats[idx].name = name;
+                DB.set('categories', cats);
+                alert("Updated!");
+            }
+        }
+
+        function deleteCategory(id) {
+            if(!confirm('Delete this category?')) return;
+            let cats = DB.get('categories') || [];
+            DB.set('categories', cats.filter(c => c.id !== id));
+            openCategoryModal(); 
+        }
+
+        // ===== PURCHASES (With Price History & Editing) =====
         function renderPurchases() { 
             const purchases = DB.get('purchases') || []; 
             document.getElementById('pageContent').innerHTML = `
@@ -477,7 +569,7 @@
                             <div class="flex justify-between items-center p-2 border-b border-[var(--border)]">
                                 <div>
                                     <p class="font-medium">${p.itemName}</p>
-                                    <p class="text-xs text-[var(--muted)]">${new Date(p.date).toLocaleString()} - Qty: ${p.qty} <span class="font-bold ${p.payType === 'cash' ? 'text-[var(--danger)]' : 'text-[var(--warning)]'}">(${p.payType ? p.payType.toUpperCase() : 'N/A'})</span></p>
+                                    <p class="text-xs text-[var(--muted)]">${new Date(p.date).toLocaleString()} - Qty: ${p.qty} @ ${CURRENCY}${p.cost} <span class="font-bold ${p.payType === 'cash' ? 'text-[var(--danger)]' : 'text-[var(--warning)]'}">(${p.payType ? p.payType.toUpperCase() : 'N/A'})</span></p>
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <p class="font-display font-bold">${CURRENCY}${p.totalCost.toFixed(0)}</p>
@@ -496,13 +588,26 @@
             openModal(`
                 <h3 class="font-display font-bold mb-4">${p ? 'Edit' : 'Record'} Purchase</h3>
                 <div class="space-y-3">
-                    <select id="purchaseItem" class="input-field" onchange="updatePurchaseCost()">
+                    <select id="purchaseItem" class="input-field" onchange="loadItemPurchaseHistory()">
                         <option value="">Select Item</option>
                         ${items.map(i => `<option value="${i.id}" data-cost="${i.cost}" ${p && p.itemId == i.id ? 'selected' : ''}>${i.name}</option>`).join('')}
                     </select>
+                    
+                    <!-- Price History Section in Modal -->
+                    <div id="purchasePriceHistoryContainer" class="hidden">
+                        <label class="text-xs text-[var(--muted)]">Recent Prices (Click to use):</label>
+                        <div id="purchasePriceHistoryList" class="flex gap-2 mt-1 flex-wrap"></div>
+                    </div>
+
                     <div class="grid grid-cols-2 gap-3">
-                        <input type="number" id="purchaseQty" class="input-field" placeholder="Qty" value="${p ? p.qty : 1}" oninput="updatePurchaseCost()">
-                        <input type="number" id="purchaseCost" class="input-field" placeholder="Cost/item" value="${p ? p.cost : ''}">
+                        <input type="number" id="purchaseQty" class="input-field" placeholder="Qty" value="${p ? p.qty : 1}" oninput="calculatePurchaseTotal()">
+                        <div>
+                            <input type="number" id="purchaseCost" class="input-field" placeholder="Cost per item" value="${p ? p.cost : ''}" oninput="calculatePurchaseTotal()">
+                        </div>
+                    </div>
+                    <div class="bg-[var(--bg)] p-2 rounded-lg flex justify-between items-center">
+                        <span class="text-sm text-[var(--muted)]">Total Cost:</span>
+                        <span id="purchaseTotalDisplay" class="font-bold">${CURRENCY}${p ? (p.qty * p.cost).toFixed(0) : '0'}</span>
                     </div>
                     <select id="purchasePayType" class="input-field">
                         <option value="cash" ${p && p.payType === 'cash' ? 'selected' : ''}>Cash (Paid)</option>
@@ -513,31 +618,94 @@
                     <button onclick="savePurchase()" class="btn btn-primary w-full">${p ? 'Update' : 'Save'}</button>
                 </div>
             `); 
-            if (!p) updatePurchaseCost();
+            
+            if (!p) loadItemPurchaseHistory(); // Load history if new
+            else loadItemPurchaseHistory(); // Load history if edit
+        }
+
+        function loadItemPurchaseHistory() { 
+            const sel = document.getElementById('purchaseItem'); 
+            const itemId = parseInt(sel.value);
+            const currentCost = parseFloat(sel.options[sel.selectedIndex].getAttribute('data-cost')) || 0;
+            
+            const container = document.getElementById('purchasePriceHistoryContainer');
+            const list = document.getElementById('purchasePriceHistoryList');
+            
+            if (!itemId) {
+                container.classList.add('hidden');
+                return;
+            }
+
+            // Get history
+            const priceHistory = DB.get('priceHistory') || [];
+            const itemHistory = priceHistory.filter(h => h.itemId === itemId).reverse().slice(0, 5); // Last 5 changes
+            
+            // Display
+            container.classList.remove('hidden');
+            
+            let html = `
+                <button type="button" onclick="setPurchaseCost(${currentCost})" class="px-2 py-1 bg-[var(--accent-dim)] text-[var(--accent)] border border-[var(--accent)] rounded text-xs font-bold hover:opacity-80">
+                    Current: ${CURRENCY}${currentCost}
+                </button>
+            `;
+            
+            itemHistory.forEach(h => {
+                html += `
+                    <button type="button" onclick="setPurchaseCost(${h.newCost})" class="px-2 py-1 bg-[var(--bg)] border rounded text-xs font-medium hover:bg-[var(--border)]">
+                        ${CURRENCY}${h.newCost} <span class="text-[var(--muted)]">(${new Date(h.date).toLocaleDateString()})</span>
+                    </button>
+                `;
+            });
+            
+            list.innerHTML = html;
+            
+            // Auto-fill cost if empty
+            const costInput = document.getElementById('purchaseCost');
+            if(!costInput.value) costInput.value = currentCost;
+            calculatePurchaseTotal();
+        }
+
+        function setPurchaseCost(val) {
+            document.getElementById('purchaseCost').value = val;
+            calculatePurchaseTotal();
         }
         
-        function updatePurchaseCost() { 
-            const sel = document.getElementById('purchaseItem'); 
-            const opt = sel.options[sel.selectedIndex]; 
-            const cost = opt.getAttribute('data-cost') || 0; 
-            const existingCost = document.getElementById('purchaseCost').value;
-            if(!existingCost) document.getElementById('purchaseCost').value = cost; 
+        function calculatePurchaseTotal() {
+            const qty = parseFloat(document.getElementById('purchaseQty').value) || 0;
+            const cost = parseFloat(document.getElementById('purchaseCost').value) || 0;
+            document.getElementById('purchaseTotalDisplay').textContent = CURRENCY + (qty * cost).toFixed(0);
         }
         
         function savePurchase() { 
             const editId = document.getElementById('editPurchaseId').value;
             const itemId = parseInt(document.getElementById('purchaseItem').value); 
             const qty = parseInt(document.getElementById('purchaseQty').value); 
-            const cost = parseFloat(document.getElementById('purchaseCost').value); 
+            const newCost = parseFloat(document.getElementById('purchaseCost').value); 
             const date = document.getElementById('purchaseDate').value; 
             const payType = document.getElementById('purchasePayType').value; 
             
-            if(!itemId || !qty || !cost) return alert('Fill all fields'); 
+            if(!itemId || !qty || !newCost) return alert('Fill all fields'); 
             
             let items = DB.get('items') || []; 
             const itemIdx = items.findIndex(i => i.id === itemId);
             if(itemIdx === -1) return alert('Item not found');
             const itemName = items[itemIdx].name;
+            const oldCost = items[itemIdx].cost;
+
+            // Record Price Change History
+            if (newCost !== oldCost) {
+                let priceHistory = DB.get('priceHistory') || [];
+                priceHistory.push({
+                    id: Date.now(),
+                    itemId: itemId,
+                    itemName: itemName,
+                    date: new Date().toISOString(),
+                    oldCost: oldCost,
+                    newCost: newCost,
+                    change: newCost - oldCost
+                });
+                DB.set('priceHistory', priceHistory);
+            }
 
             let purchases = DB.get('purchases') || [];
             
@@ -546,18 +714,19 @@
                 if (pIdx === -1) return alert('Purchase record not found');
                 const oldP = purchases[pIdx];
 
+                // Revert stock
                 const oldItemIdx = items.findIndex(i => i.id === oldP.itemId);
                 if(oldItemIdx !== -1) items[oldItemIdx].stock -= oldP.qty;
 
                 items[itemIdx].stock += qty;
-                items[itemIdx].cost = cost;
+                items[itemIdx].cost = newCost; // Update to new cost
 
-                purchases[pIdx] = { ...oldP, itemId, itemName, qty, cost, totalCost: qty * cost, date, payType };
+                purchases[pIdx] = { ...oldP, itemId, itemName, qty, cost: newCost, totalCost: qty * newCost, date, payType };
                 
             } else {
                 items[itemIdx].stock += qty; 
-                items[itemIdx].cost = cost; 
-                purchases.push({ id: Date.now(), itemId, itemName, qty, cost, totalCost: qty * cost, date, payType });
+                items[itemIdx].cost = newCost; 
+                purchases.push({ id: Date.now(), itemId, itemName, qty, cost: newCost, totalCost: qty * newCost, date, payType });
             }
 
             DB.set('items', items); 
@@ -609,13 +778,10 @@
         
         function openCameraScanner() { 
             document.getElementById('scannerModal').classList.add('active'); 
-            
-            // Setup File Input Listener
             const fileInput = document.getElementById('qr-input-file');
             fileInput.onchange = (e) => {
                 if (e.target.files.length === 0) return;
                 const file = e.target.files[0];
-                // Use a temporary scanner instance for file
                 const tempScanner = new Html5Qrcode("reader");
                 tempScanner.scanFile(file, true)
                     .then(decodedText => {
@@ -623,45 +789,39 @@
                         tempScanner.clear();
                     })
                     .catch(err => {
-                        alert("Could not read barcode from image. Try again.");
+                        alert("Could not read barcode from image.");
                         tempScanner.clear();
                     });
-                e.target.value = ""; // Reset file input
+                e.target.value = "";
             };
 
-            // Start Camera
             html5QrcodeScanner = new Html5Qrcode("reader");
             const config = { fps: 10, qrbox: { width: 250, height: 250 } };
             
-            html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess, (errorMessage) => {
-                // Ignore scan errors
-            }).catch(err => {
-                console.error("Camera Error:", err);
-                alert("Could not start camera. Please use the 'Upload Image' button inside the scanner to select a photo of the barcode.");
+            html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess, (errorMessage) => {}).catch(err => {
+                alert("Camera Error. Use 'Upload Image'.");
             });
         }
 
         function onScanSuccess(decodedText) {
             const items = DB.get('items') || []; 
             const found = items.find(i => i.code && i.code.toLowerCase() === decodedText.toLowerCase()); 
-            if (found) { 
-                addToCart(found.id); 
-                playBeep(); 
-                stopScanner(); 
-            } else { 
-                alert("Item not found: " + decodedText); 
-            } 
+            if (found) { addToCart(found.id); playBeep(); stopScanner(); } 
+            else { alert("Item not found: " + decodedText); } 
         }
 
         function stopScanner() { 
-            if(html5QrcodeScanner && html5QrcodeScanner.getState() === 2) { // SCANNING
-                html5QrcodeScanner.stop().then(() => {
-                    html5QrcodeScanner.clear();
-                    document.getElementById('scannerModal').classList.remove('active');
-                }).catch(err => {
-                    console.error("Stop error", err);
-                    document.getElementById('scannerModal').classList.remove('active');
-                });
+            if(html5QrcodeScanner) { 
+                if(html5QrcodeScanner.getState() === 2) {
+                    html5QrcodeScanner.stop().then(() => {
+                        html5QrcodeScanner.clear();
+                        document.getElementById('scannerModal').classList.remove('active');
+                    }).catch(err => {
+                        document.getElementById('scannerModal').classList.remove('active');
+                    });
+                } else {
+                     document.getElementById('scannerModal').classList.remove('active');
+                }
             } else {
                 document.getElementById('scannerModal').classList.remove('active');
             }
@@ -688,8 +848,6 @@
             DB.set('items', items);
             DB.set('transactions', tx.filter(t => t.id !== txId));
             cart = transaction.items.map(i => ({...i, stock: items.find(it => it.id === i.id)?.stock || 0, defaultPrice: i.defaultPrice || i.price, sellPrice: i.price, mrp: i.mrp || i.price }));
-            document.getElementById('billCust').value = transaction.customerId || '';
-            document.getElementById('billDiscount').value = transaction.discountPercent || 0;
             renderBilling(true);
         }
 
@@ -732,11 +890,12 @@
 
         function processBill() {
             if(cart.length===0) return;
-            const settings = DB.get('settings');
-            const custId = parseInt(document.getElementById('billCust').value) || null; // Fix: Ensure Integer or Null
+            let settings = DB.get('settings');
+            const custId = parseInt(document.getElementById('billCust').value) || null;
             const payType = document.getElementById('billPayType').value;
             const custList = DB.get('customers') || [];
-            const custName = custId ? (custList.find(c=>c.id===custId)?.name || 'Walk-in Customer') : 'Walk-in Customer';
+            const customer = custId ? custList.find(c=>c.id===custId) : null;
+            const custName = customer ? customer.name : 'Walk-in Customer';
             
             if(payType === 'credit' && !custId) return alert("Select a customer for Credit");
 
@@ -760,11 +919,14 @@
             if(payType === 'credit') { let custs = DB.get('customers'); const cIdx = custs.findIndex(c => c.id === custId); if(cIdx !== -1) { custs[cIdx].balance = (custs[cIdx].balance || 0) + total; DB.set('customers', custs); } }
 
             const tx = DB.get('transactions') || [];
+            const newId = settings.nextBillId || 1;
+            
             const newTx = { 
-                id: tx.length + 1, 
+                id: newId, 
                 date: new Date().toISOString(), 
                 customerName: custName, 
-                customerId: custId, // Saved as Integer or Null
+                customerId: custId,
+                customerPhone: customer ? customer.phone : '', 
                 items: cart.map(i=>({id: i.id, name:i.name, price:i.sellPrice, mrp: i.mrp, defaultPrice: i.defaultPrice, categoryName: i.categoryName, qty:i.qty, cost: i.cost})),
                 totalDefaultPrice,
                 itemDiscount,
@@ -774,9 +936,13 @@
                 total, profit, type: payType 
             };
             tx.push(newTx);
+            
+            settings.nextBillId = newId + 1;
+            
             DB.set('transactions', tx);
+            DB.set('settings', settings);
 
-            showBillPreview(newTx, settings, custId ? (custList.find(c=>c.id===custId)) : null);
+            showBillPreview(newTx, settings, customer);
         }
 
         function reprintBill(txId) {
@@ -784,7 +950,8 @@
             const transaction = tx.find(t => t.id === txId);
             if(transaction) { 
                 const customer = transaction.customerId ? (DB.get('customers')||[]).find(c => c.id === transaction.customerId) : null;
-                showBillPreview(transaction, DB.get('settings'), customer);
+                const custData = customer ? customer : { name: transaction.customerName, phone: transaction.customerPhone || '', balance: 0 };
+                showBillPreview(transaction, DB.get('settings'), custData);
             }
         }
 
@@ -792,17 +959,9 @@
             const upiLink = `upi://pay?pa=${settings.upiId}&pn=${encodeURIComponent(settings.shopName)}&am=${tx.total.toFixed(2)}&cu=INR`;
             const printArea = document.getElementById('printArea');
             
-            let grandTotalHtml = '';
-            let grandTotalVal = tx.total;
-            if(customer && customer.balance > 0) {
-                grandTotalVal = tx.total + customer.balance;
-                grandTotalHtml = `<div style="border-top: 1px dashed #000; margin-top: 4px; padding-top: 4px;"><div style="display: flex; justify-content: space-between; font-size: 10px;"><span>Previous Balance:</span><span>${CURRENCY}${customer.balance.toFixed(0)}</span></div><div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; margin-top: 2px;"><span>GRAND TOTAL:</span><span>${CURRENCY}${grandTotalVal.toFixed(0)}</span></div></div>`;
-            }
-
             let billText = `*${settings.shopName}*\nBill #: ${tx.id}\nDate: ${new Date(tx.date).toLocaleString()}\nCustomer: ${tx.customerName}\n-------------------\n`;
             tx.items.forEach(i => { billText += `${i.name}\n  ${i.qty} x ${i.price} = ${CURRENCY}${(i.price*i.qty).toFixed(0)}\n`; });
-            billText += `-------------------\nSubtotal: ${CURRENCY}${tx.totalDefaultPrice.toFixed(0)}\nDiscount: -${CURRENCY}${tx.totalDiscount.toFixed(0)}\n*Total: ${CURRENCY}${tx.total.toFixed(0)}*\n`;
-            if(grandTotalVal > tx.total) billText += `Grand Total: ${CURRENCY}${grandTotalVal.toFixed(0)}\n`; billText += `\nThank you!`;
+            billText += `-------------------\nSubtotal: ${CURRENCY}${tx.totalDefaultPrice.toFixed(0)}\nDiscount: -${CURRENCY}${tx.totalDiscount.toFixed(0)}\n*Total: ${CURRENCY}${tx.total.toFixed(0)}*\n\nThank you!`;
 
             const waLink = `https://wa.me/?text=${encodeURIComponent(billText)}`;
 
@@ -829,7 +988,10 @@
                         </div>
                         <div style="padding: 0 16px;">
                             <div style="font-size: 12px; margin: 12px 0; display: flex; justify-content: space-between;"><span>Bill #: ${tx.id}</span><span>${new Date(tx.date).toLocaleString()}</span></div>
-                            <div style="font-size: 13px; margin-bottom: 10px; font-weight: bold; background: #f5f5f5; padding: 6px; border-radius: 4px;">Customer: ${tx.customerName}</div>
+                            <div style="font-size: 13px; margin-bottom: 10px; font-weight: bold; background: #f5f5f5; padding: 6px; border-radius: 4px;">
+                                Customer: ${tx.customerName}
+                                ${tx.customerPhone ? `<span style="font-weight: normal; color: #555; display: block; font-size: 11px;">Ph: ${tx.customerPhone}</span>` : ''}
+                            </div>
                             <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
                                 <thead><tr style="border-bottom: 1px solid #000;"><th align="left" style="padding: 8px 0;">Item</th><th align="center">MRP</th><th align="center">Rate</th><th align="center">Qty</th><th align="right">Amt</th></tr></thead>
                                 <tbody>
@@ -848,7 +1010,6 @@
                                 <div style="display: flex; justify-content: space-between; font-size: 12px;"><span>Subtotal:</span><span>${CURRENCY}${(tx.totalDefaultPrice || tx.total).toFixed(0)}</span></div>
                                 <div style="display: flex; justify-content: space-between; font-size: 12px; color: #dc3545;"><span>Total Discount:</span><span>-${CURRENCY}${(tx.totalDiscount || 0).toFixed(0)}</span></div>
                                 <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-top: 6px; border-top: 1px solid #000; padding-top: 6px;"><span>TOTAL:</span><span>${CURRENCY}${tx.total.toFixed(0)}</span></div>
-                                ${grandTotalHtml}
                             </div>
                             <div style="text-align: center; margin-top: 20px;">
                                 <div id="qrcode"></div>
@@ -883,28 +1044,63 @@
 
         function deleteTransaction(id, fromPage = 'reports') { if(!confirm('Move to Trash?')) return; let txs = DB.get('transactions') || []; const transaction = txs.find(t => t.id === id); if (transaction) { let items = DB.get('items') || []; transaction.items.forEach(txItem => { const itemIdx = items.findIndex(i => i.id === txItem.id); if (itemIdx !== -1) items[itemIdx].stock += txItem.qty; }); DB.set('items', items); if(transaction.type === 'credit' && transaction.customerId) { let custs = DB.get('customers'); const cIdx = custs.findIndex(c => c.id == transaction.customerId); if(cIdx !== -1) { custs[cIdx].balance -= transaction.total; DB.set('customers', custs); } } moveToTrash('transaction', transaction); DB.set('transactions', txs.filter(t => t.id !== id)); if(fromPage === 'billing') renderBilling(); else renderReports(); } }
 
+        // ===== REPORTS =====
         function renderReports() { const today = new Date().toISOString().split('T')[0]; document.getElementById('pageContent').innerHTML = `<div class="card mb-4"><div class="grid grid-cols-2 md:grid-cols-5 gap-2 items-end"><div><label class="text-xs text-[var(--muted)]">From</label><input type="date" id="repFrom" class="input-field" value="${today}"></div><div><label class="text-xs text-[var(--muted)]">To</label><input type="date" id="repTo" class="input-field" value="${today}"></div><div><label class="text-xs text-[var(--muted)]">Type</label><select id="repType" class="input-field"><option value="all">All</option><option value="cash">Cash</option><option value="credit">Credit</option></select></div><button onclick="generateReport()" class="btn btn-primary h-fit">Go</button></div></div><div id="reportContent"></div>`; generateReport(); }
         
         function generateReport() { 
             const from = new Date(document.getElementById('repFrom').value); 
             const to = new Date(document.getElementById('repTo').value); to.setHours(23,59,59); 
             const type = document.getElementById('repType').value; 
+            
             let tx = DB.get('transactions') || []; 
             const filtered = tx.filter(t => { const d = new Date(t.date); return d >= from && d <= to && (type === 'all' || t.type === type); }); 
+            
             const totalSales = filtered.reduce((a,b)=>a+b.total,0); 
             const grossProfit = filtered.reduce((a,b)=>a+b.profit,0);
             const expenses = DB.get('expenses') || [];
+            const withdrawals = DB.get('withdrawals') || [];
+            
             const periodExpenses = expenses.filter(e => { const d = new Date(e.date); return d >= from && d <= to; }).reduce((a, e) => a + e.amount, 0);
+            const periodWithdrawals = withdrawals.filter(w => { const d = new Date(w.date); return d >= from && d <= to; }).reduce((a, w) => a + w.amount, 0);
             const netProfit = grossProfit - periodExpenses;
+
+            const priceHistory = DB.get('priceHistory') || [];
+            const periodPriceChanges = priceHistory.filter(p => { const d = new Date(p.date); return d >= from && d <= to; });
+
             document.getElementById('reportContent').innerHTML = `
-                <div class="grid grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
+                <div class="grid grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
                     <div class="card text-center"><p class="text-xs text-[var(--muted)]">Bills</p><p class="font-display text-xl font-bold">${filtered.length}</p></div>
                     <div class="card text-center"><p class="text-xs text-[var(--muted)]">Sales</p><p class="font-display text-xl font-bold text-[var(--accent)]">${CURRENCY}${totalSales.toFixed(0)}</p></div>
                     <div class="card text-center"><p class="text-xs text-[var(--muted)]">Gross Profit</p><p class="font-display text-xl font-bold">${CURRENCY}${grossProfit.toFixed(0)}</p></div>
                     <div class="card text-center"><p class="text-xs text-[var(--muted)]">Expenses</p><p class="font-display text-xl font-bold text-[var(--danger)]">${CURRENCY}${periodExpenses.toFixed(0)}</p></div>
+                    <div class="card text-center"><p class="text-xs text-[var(--muted)]">Withdrawals</p><p class="font-display text-xl font-bold text-[var(--warning)]">${CURRENCY}${periodWithdrawals.toFixed(0)}</p></div>
                     <div class="card text-center col-span-3 lg:col-span-1"><p class="text-xs text-[var(--muted)]">Net Profit</p><p class="font-display text-xl font-bold ${netProfit >= 0 ? '' : 'text-[var(--danger)]'}">${CURRENCY}${netProfit.toFixed(0)}</p></div>
                 </div>
-                <div class="card overflow-x-auto"><table class="w-full text-sm"><thead><tr class="border-b"><th class="text-left py-2">ID</th><th class="text-left">Date</th><th class="text-left">Customer</th><th class="text-right">Disc</th><th class="text-right">Total</th><th class="text-center">Action</th></tr></thead><tbody>${filtered.slice().reverse().map(t => `<tr class="border-b"><td class="py-2">#${t.id}</td><td>${new Date(t.date).toLocaleDateString()}</td><td>${t.customerName}</td><td class="text-right text-[var(--danger)]">${CURRENCY}${(t.totalDiscount||0).toFixed(0)}</td><td class="text-right font-bold">${CURRENCY}${t.total.toFixed(0)}</td><td class="text-center"><button onclick="reprintBill(${t.id})" class="btn btn-secondary text-xs py-1 px-2">View</button></td></tr>`).join('')}</tbody></table></div>`; 
+
+                <div class="grid lg:grid-cols-2 gap-4 mb-4">
+                    <div class="card overflow-x-auto">
+                        <h4 class="font-bold mb-3">Sales Detail</h4>
+                        <table class="w-full text-sm"><thead><tr class="border-b"><th class="text-left py-2">ID</th><th class="text-left">Date</th><th class="text-left">Customer</th><th class="text-right">Disc</th><th class="text-right">Total</th><th class="text-center">Action</th></tr></thead><tbody>${filtered.slice().reverse().map(t => `<tr class="border-b"><td class="py-2">#${t.id}</td><td>${new Date(t.date).toLocaleDateString()}</td><td>${t.customerName}</td><td class="text-right text-[var(--danger)]">${CURRENCY}${(t.totalDiscount||0).toFixed(0)}</td><td class="text-right font-bold">${CURRENCY}${t.total.toFixed(0)}</td><td class="text-center"><button onclick="reprintBill(${t.id})" class="btn btn-secondary text-xs py-1 px-2">View</button></td></tr>`).join('')}</tbody></table>
+                    </div>
+                    <div class="card">
+                        <h4 class="font-bold mb-3">Purchase Price Changes</h4>
+                        <div class="space-y-2 max-h-64 overflow-y-auto">
+                            ${periodPriceChanges.slice().reverse().map(p => `
+                                <div class="p-2 bg-[var(--bg)] rounded-lg text-xs">
+                                    <div class="flex justify-between">
+                                        <span class="font-medium">${p.itemName}</span>
+                                        <span class="text-[var(--muted)]">${new Date(p.date).toLocaleDateString()}</span>
+                                    </div>
+                                    <div class="flex justify-between mt-1">
+                                        <span>Cost: <span class="text-[var(--danger)]">${CURRENCY}${p.oldCost}</span> → <span class="text-[var(--success)]">${CURRENCY}${p.newCost}</span></span>
+                                        <span class="font-bold ${p.change >= 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'}">${p.change >= 0 ? '+' : ''}${CURRENCY}${p.change.toFixed(0)}</span>
+                                    </div>
+                                </div>
+                            `).join('') || '<p class="text-center text-[var(--muted)] py-4">No price changes in this period</p>'}
+                        </div>
+                    </div>
+                </div>
+            `; 
         }
 
         function renderCustomers() { const cust = DB.get('customers') || []; document.getElementById('pageContent').innerHTML = `<div class="flex justify-between items-center mb-4"><p class="text-[var(--muted)] text-sm">${cust.length} customers</p><button onclick="openCustomerModal()" class="btn btn-primary text-sm py-2 px-4">Add</button></div><div class="grid md:grid-cols-2 gap-3">${cust.map(c => `<div class="card flex justify-between items-center"><div onclick="viewCustomerLedger(${c.id})" class="cursor-pointer flex-1"><p class="font-medium">${c.name} <span class="text-[var(--muted)] text-xs">${c.phone}</span></p><p class="text-sm mt-1">Bal: <span class="font-bold ${c.balance > 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'}">${CURRENCY}${(c.balance||0).toFixed(0)}</span></p></div><button onclick="deleteCustomer(${c.id})" class="text-[var(--danger)] text-sm">Del</button></div>`).join('')}</div>`; }
@@ -912,40 +1108,28 @@
         function saveCustomer() { const name = document.getElementById('cName').value.trim(); const phone = document.getElementById('cPhone').value.trim(); if(!name) return; const cust = DB.get('customers') || []; cust.push({id: Date.now(), name, phone, balance: 0}); DB.set('customers', cust); closeModal(); renderCustomers(); }
         function deleteCustomer(id) { if(!confirm('Move to trash?')) return; let cust = DB.get('customers') || []; const c = cust.find(x=>x.id===id); if(c){ moveToTrash('customer', c); DB.set('customers', cust.filter(x=>x.id!==id)); renderCustomers(); } }
 
-        // ===== LEDGER (Updated to show all customers) =====
+        // ===== LEDGER =====
         function renderLedger() { 
             const customers = DB.get('customers') || []; 
-            const totalCustomerDue = customers.reduce((a, c) => a + (c.balance || 0), 0);
-            
             const purchases = DB.get('purchases') || [];
             const creditPurchases = purchases.filter(p => p.payType === 'credit');
-            const totalSupplierDue = creditPurchases.reduce((a, p) => a + p.totalCost, 0);
-
+            
             document.getElementById('pageContent').innerHTML = `
                 <div class="grid md:grid-cols-2 gap-4 mb-6">
-                    <div class="card"><p class="text-xs text-[var(--muted)]">Total Customer Due</p><p class="font-display text-2xl font-bold text-[var(--danger)]">${CURRENCY}${totalCustomerDue.toFixed(0)}</p></div>
-                    <div class="card"><p class="text-xs text-[var(--muted)]">Total Supplier Due</p><p class="font-display text-2xl font-bold text-[var(--warning)]">${CURRENCY}${totalSupplierDue.toFixed(0)}</p></div>
+                    <div class="card"><p class="text-xs text-[var(--muted)]">Total Customer Due</p><p class="font-display text-2xl font-bold text-[var(--danger)]">${CURRENCY}${customers.reduce((a, c) => a + (c.balance || 0), 0).toFixed(0)}</p></div>
+                    <div class="card"><p class="text-xs text-[var(--muted)]">Total Supplier Due</p><p class="font-display text-2xl font-bold text-[var(--warning)]">${CURRENCY}${creditPurchases.reduce((a, p) => a + p.totalCost, 0).toFixed(0)}</p></div>
                 </div>
+                
                 <div class="card mb-6">
-                    <h4 class="font-bold mb-3">Customer Accounts</h4>
-                    <p class="text-xs text-[var(--muted)] mb-3">Shows all customers. Cash and Credit sales history available in 'History'.</p>
-                    <div class="grid gap-3">
-                        ${customers.map(c => `
-                            <div class="flex justify-between items-center p-2 bg-[var(--bg)] rounded-lg">
-                                <div>
-                                    <p class="font-medium">${c.name}</p>
-                                    <p class="${c.balance > 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'} font-bold text-sm">
-                                        ${c.balance > 0 ? 'Due: ' + CURRENCY + (c.balance||0).toFixed(0) : 'Settled'}
-                                    </p>
-                                </div>
-                                <div class="flex gap-2">
-                                    <button onclick="viewCustomerLedger(${c.id})" class="btn btn-secondary text-xs py-1 px-3">History</button>
-                                    ${c.balance > 0 ? `<button onclick="openPaymentModal(${c.id}, ${c.balance})" class="btn btn-primary text-xs py-1 px-3">Pay</button>` : ''}
-                                </div>
-                            </div>
-                        `).join('') || '<p class="text-center text-[var(--muted)] text-sm">No customers found.</p>'}
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="font-bold">Customer Accounts</h4>
+                        <input type="text" id="ledgerSearch" class="input-field w-48" placeholder="Search name..." oninput="filterLedgerCustomers()">
+                    </div>
+                    <div class="grid gap-3" id="ledgerCustomerList">
+                        ${renderLedgerCustomerRows(customers)}
                     </div>
                 </div>
+                
                 <div class="card">
                     <h4 class="font-bold mb-3 text-[var(--warning)]">Supplier Credit</h4>
                     <div class="space-y-2">
@@ -963,6 +1147,30 @@
                         `).join('') || '<p class="text-center text-[var(--muted)] text-sm">No supplier dues.</p>'}
                     </div>
                 </div>`;
+        }
+
+        function filterLedgerCustomers() {
+            const q = (document.getElementById('ledgerSearch').value || '').toLowerCase();
+            const customers = DB.get('customers') || [];
+            const filtered = customers.filter(c => c.name.toLowerCase().includes(q));
+            document.getElementById('ledgerCustomerList').innerHTML = renderLedgerCustomerRows(filtered);
+        }
+
+        function renderLedgerCustomerRows(customers) {
+             return customers.map(c => `
+                <div class="flex justify-between items-center p-2 bg-[var(--bg)] rounded-lg">
+                    <div>
+                        <p class="font-medium">${c.name}</p>
+                        <p class="${c.balance > 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'} font-bold text-sm">
+                            ${c.balance > 0 ? 'Due: ' + CURRENCY + (c.balance||0).toFixed(0) : 'Settled'}
+                        </p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="viewCustomerLedger(${c.id})" class="btn btn-secondary text-xs py-1 px-3">History</button>
+                        ${c.balance > 0 ? `<button onclick="openPaymentModal(${c.id}, ${c.balance})" class="btn btn-primary text-xs py-1 px-3">Pay</button>` : ''}
+                    </div>
+                </div>
+            `).join('') || '<p class="text-center text-[var(--muted)] text-sm">No customers found.</p>';
         }
 
         function openPaymentModal(custId, bal) { openModal(`<h3 class="font-display font-bold mb-4">Record Payment</h3><input type="number" id="paymentAmount" class="input-field mb-3" value="${bal}"><button onclick="savePayment(${custId})" class="btn btn-primary w-full">Save</button>`); }
@@ -986,29 +1194,20 @@
             closeModal(); renderLedger();
         }
 
-        // Updated to show Cash and Credit Sales details
         function viewCustomerLedger(custId) { 
             const customer = (DB.get('customers')||[]).find(c => c.id === custId); 
-            // Fetch transactions where customerId matches (strict equality). 
-            // Note: processBill now saves customerId as Integer.
             const transactions = (DB.get('transactions')||[]).filter(t => t.customerId === custId); 
             const payments = (DB.get('ledger')||[]).filter(l => l.customerId === custId); 
             
             const history = [
-                ...transactions.map(t => ({ 
-                    date: t.date, 
-                    desc: `${t.type === 'credit' ? 'Credit Sale' : 'Cash Sale'} #${t.id}`, 
-                    amount: t.total, 
-                    type: 'debit' 
-                })), 
-                ...payments.map(p => ({ 
-                    date: p.date, 
-                    desc: 'Payment Received', 
-                    amount: p.amount, 
-                    type: 'credit' 
-                }))
+                ...transactions.map(t => ({ date: t.date, desc: `${t.type === 'credit' ? 'Credit Sale' : 'Cash Sale'} #${t.id}`, amount: t.total, type: 'debit' })), 
+                ...payments.map(p => ({ date: p.date, desc: 'Payment Received', amount: p.amount, type: 'credit' }))
             ].sort((a,b) => new Date(b.date) - new Date(a.date)); 
             
+            const settings = DB.get('settings');
+            let stmtText = `*${settings.shopName}*\nLedger Statement\nCustomer: ${customer.name}\nBalance: ${CURRENCY}${(customer.balance||0).toFixed(0)}\n-------------------\n`;
+            history.forEach(h => { stmtText += `${new Date(h.date).toLocaleDateString()}: ${h.desc} (${h.type === 'credit' ? '-' : '+'} ${CURRENCY}${h.amount.toFixed(0)})\n`; });
+
             openModal(`
                 <h3 class="font-display font-bold mb-2">${customer.name}</h3>
                 <p class="text-xs text-[var(--muted)] mb-4">Current Balance: ${CURRENCY}${(customer.balance||0).toFixed(0)}</p>
@@ -1025,8 +1224,51 @@
                         </div>
                     `).join('')}
                 </div>
-                <button onclick="closeModal()" class="btn btn-secondary w-full mt-4">Close</button>
+                <div class="flex gap-2 mt-4">
+                    <a href="https://wa.me/?text=${encodeURIComponent(stmtText)}" target="_blank" class="btn btn-success flex-1">WhatsApp</a>
+                    <button onclick="printCustomerLedger(${custId})" class="btn btn-primary flex-1">Print</button>
+                </div>
             `); 
+        }
+
+        function printCustomerLedger(custId) {
+            const customer = (DB.get('customers')||[]).find(c => c.id === custId); 
+            const transactions = (DB.get('transactions')||[]).filter(t => t.customerId === custId); 
+            const payments = (DB.get('ledger')||[]).filter(l => l.customerId === custId); 
+            const history = [
+                ...transactions.map(t => ({ date: t.date, desc: `${t.type === 'credit' ? 'Credit Sale' : 'Cash Sale'} #${t.id}`, amount: t.total, type: 'debit' })), 
+                ...payments.map(p => ({ date: p.date, desc: 'Payment Received', amount: p.amount, type: 'credit' }))
+            ].sort((a,b) => new Date(b.date) - new Date(a.date));
+            const settings = DB.get('settings');
+
+            const html = `
+                <div style="font-family: 'Courier New', monospace; padding: 20px;">
+                    <h1 style="text-align:center;">${settings.shopName}</h1>
+                    <p style="text-align:center; font-size:12px;">Ledger Statement</p>
+                    <hr style="border:dashed 1px #000; margin: 10px 0;">
+                    <p><strong>Customer:</strong> ${customer.name}</p>
+                    <p><strong>Phone:</strong> ${customer.phone || 'N/A'}</p>
+                    <p><strong>Balance Due:</strong> ${CURRENCY}${(customer.balance||0).toFixed(0)}</p>
+                    <hr style="border:dashed 1px #000; margin: 10px 0;">
+                    <table style="width:100%; font-size:12px;">
+                        <thead><tr><th align="left">Date</th><th align="left">Description</th><th align="right">Amount</th></tr></thead>
+                        <tbody>
+                            ${history.map(h => `<tr>
+                                <td>${new Date(h.date).toLocaleDateString()}</td>
+                                <td>${h.desc}</td>
+                                <td align="right">${h.type === 'credit' ? '+' : '-'} ${CURRENCY}${h.amount.toFixed(0)}</td>
+                            </tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            const printWindow = window.open('', '', 'height=600,width=400');
+            printWindow.document.write('<html><head><title>Ledger</title></head><body>');
+            printWindow.document.write(html);
+            printWindow.document.write('</body></html>');
+            printWindow.document.close();
+            printWindow.print();
         }
 
         // ===== SETTINGS =====
@@ -1142,7 +1384,7 @@
         }
 
         function previewShopImg(input) { if(input.files[0]) { const reader = new FileReader(); reader.onload = (e) => { window.tmpShopImg = e.target.result; document.getElementById('shopImgPreview').innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover">`; }; reader.readAsDataURL(input.files[0]); } }
-        function saveSettings() { const settings = { shopName: document.getElementById('settingName').value.trim(), address: document.getElementById('settingAddress').value.trim(), phone: document.getElementById('settingPhone').value.trim(), upiId: document.getElementById('settingUpi').value.trim(), shopImage: window.tmpShopImg || DB.get('settings').shopImage, openingCash: parseFloat(document.getElementById('settingOpeningCash').value) || 0 }; DB.set('settings', settings); document.getElementById('shopNameSidebar').textContent = settings.shopName; if(settings.shopImage) { document.getElementById('sidebarLogo').src = settings.shopImage; document.getElementById('sidebarLogo').classList.remove('hidden'); document.getElementById('sidebarLogoPlaceholder').classList.add('hidden'); } alert('Saved'); }
+        function saveSettings() { const settings = { shopName: document.getElementById('settingName').value.trim(), address: document.getElementById('settingAddress').value.trim(), phone: document.getElementById('settingPhone').value.trim(), upiId: document.getElementById('settingUpi').value.trim(), shopImage: window.tmpShopImg || DB.get('settings').shopImage, openingCash: parseFloat(document.getElementById('settingOpeningCash').value) || 0, nextBillId: DB.get('settings').nextBillId }; DB.set('settings', settings); document.getElementById('shopNameSidebar').textContent = settings.shopName; if(settings.shopImage) { document.getElementById('sidebarLogo').src = settings.shopImage; document.getElementById('sidebarLogo').classList.remove('hidden'); document.getElementById('sidebarLogoPlaceholder').classList.add('hidden'); } alert('Saved'); }
 
         currentUser = DB.get('currentUser');
         if(currentUser) showApp();
