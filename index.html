@@ -310,6 +310,212 @@
         document.getElementById('loginPage').classList.remove('hidden');
         document.getElementById('loginUsername').value = '';
         document.getElementById('loginPassword').value = '';
+        document.getElementById('log        .table-row:hover { background:var(--accent-dim); }
+        .stat-card { transition:transform 0.15s ease; }
+        .stat-card:active { transform:scale(0.97); }
+        .reset-banner { background:linear-gradient(135deg,#dc3545,#a71d2a); color:white; border-radius:12px; padding:16px; margin-top:16px; text-align:center; }
+        .reset-banner button { background:white; color:#dc3545; border:none; padding:8px 20px; border-radius:8px; font-weight:700; cursor:pointer; font-size:13px; margin-top:8px; font-family:'Space Grotesk',sans-serif; }
+        .reset-banner button:hover { background:#fff0f0; }
+    </style>
+</head>
+<body>
+    <div id="toastEl" class="toast"></div>
+
+    <div id="appContainer">
+        <!-- LOGIN -->
+        <div id="loginPage" class="min-h-screen flex items-center justify-center p-4 bg-[var(--bg)]">
+            <div class="w-full max-w-sm">
+                <div class="text-center mb-8">
+                    <div class="w-16 h-16 rounded-2xl bg-[var(--accent)] flex items-center justify-center font-display font-bold text-white text-2xl mx-auto mb-3">S</div>
+                    <h1 class="font-display text-4xl font-bold mb-2" id="loginTitle">ShopEase</h1>
+                    <p class="text-[var(--muted)]">Point of Sale System</p>
+                </div>
+                <div class="card">
+                    <h2 class="font-display text-xl font-bold mb-4">Sign In</h2>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-xs text-[var(--muted)] mb-1 block">Username</label>
+                            <input type="text" id="loginUsername" class="input-field" placeholder="Enter username" autocomplete="off">
+                        </div>
+                        <div>
+                            <label class="text-xs text-[var(--muted)] mb-1 block">Password</label>
+                            <input type="password" id="loginPassword" class="input-field" placeholder="Enter password">
+                        </div>
+                        <div class="flex items-center gap-2 mt-1">
+                            <input type="checkbox" id="isAdmin" class="w-4 h-4 rounded border-gray-300 accent-[var(--accent)]">
+                            <label for="isAdmin" class="text-sm text-[var(--muted)] select-none cursor-pointer">Login as Administrator</label>
+                        </div>
+                        <button id="loginBtn" class="btn btn-primary w-full" style="padding:0.75rem;">Sign In</button>
+                        <p id="loginError" class="text-[var(--danger)] text-sm text-center hidden"></p>
+                    </div>
+                </div>
+                <div class="text-center text-[var(--muted)] text-xs mt-6 space-y-1">
+                    <p><strong>Admin:</strong> admin / admin123</p>
+                    <p><strong>User:</strong> user / user123</p>
+                </div>
+                <!-- PROMINENT RESET BUTTON -->
+                <div class="reset-banner">
+                    <p style="font-size:13px;opacity:0.9;">Can't login? Reset everything and start fresh.</p>
+                    <button id="resetAllLoginBtn">RESET DATABASE NOW</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN APP -->
+        <div id="mainApp" class="hidden">
+            <div class="overlay-bg" id="overlayBg"></div>
+            <aside class="sidebar" id="sidebar">
+                <div class="p-4 border-b border-[var(--border)] flex items-center gap-3">
+                    <img id="sidebarLogo" src="" class="shop-logo hidden">
+                    <div id="sidebarLogoPlaceholder" class="w-9 h-9 rounded-lg bg-[var(--accent)] flex items-center justify-center font-display font-bold text-white">S</div>
+                    <h1 class="font-display text-lg font-bold truncate" id="shopNameSidebar">ShopEase</h1>
+                </div>
+                <nav class="py-2 flex-1 overflow-y-auto" id="sideNav"></nav>
+                <div class="p-4 border-t border-[var(--border)]">
+                    <div class="flex justify-between items-center mb-3 px-2">
+                        <span id="currentUserDisplay" class="text-xs text-[var(--muted)]">Admin</span>
+                        <span id="currentRoleDisplay" class="badge badge-success">Admin</span>
+                    </div>
+                    <button id="logoutBtn" class="btn btn-danger w-full text-sm">Logout</button>
+                </div>
+            </aside>
+            <main class="main-content min-h-screen">
+                <header class="p-4 border-b border-[var(--border)] flex items-center bg-[var(--bg-elevated)] sticky top-0 z-30">
+                    <button id="menuBtn" class="p-2 -ml-2 hover:bg-[var(--bg)] rounded-lg mobile-header-btn">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+                    </button>
+                    <h2 id="pageTitle" class="font-display text-lg font-bold flex-1 text-center">Dashboard</h2>
+                    <div class="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center font-display font-bold text-white text-sm"><span id="userInitial">A</span></div>
+                </header>
+                <div id="pageContent" class="p-4 md:p-6"></div>
+            </main>
+        </div>
+    </div>
+
+    <div id="printArea"></div>
+
+    <div id="scannerModal" class="modal-overlay">
+        <div class="modal-content" style="max-width:400px;" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-display font-bold">Scan Barcode</h3>
+                <button id="closeScannerBtn" class="text-[var(--muted)] hover:text-[var(--fg)] text-2xl leading-none">&times;</button>
+            </div>
+            <div id="reader"></div>
+            <div class="mt-4">
+                <input type="file" id="qr-input-file" accept="image/*" style="display:none">
+                <button id="uploadScanBtn" class="btn btn-secondary w-full">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                    Upload Image
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalOverlay" class="modal-overlay">
+        <div class="modal-content" id="modalContent" onclick="event.stopPropagation()"></div>
+    </div>
+
+    <script>
+    /* ================================================================
+       ShopEase POS — Bulletproof Version
+       - No IIFE wrapper
+       - No namespaced keys (plain localStorage)
+       - Forced user recreation on every load
+       - Prominent reset button on login page
+       ================================================================ */
+
+    var CURRENCY = '\u20B9';
+    var cart = [];
+    var selectedCustomerId = null;
+    var currentUser = null;
+    var html5QrcodeScanner = null;
+    var currentPage = 'dashboard';
+    var posActiveCat = 'all';
+    var toastTimer = null;
+
+    // ===== DATABASE =====
+    function dbGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch(e) { return null; } }
+    function dbSet(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
+    function dbRemove(k) { localStorage.removeItem(k); }
+
+    // ===== TOAST =====
+    function toast(msg, type) {
+        type = type || 'success';
+        var el = document.getElementById('toastEl');
+        el.textContent = msg;
+        el.className = 'toast toast-' + type + ' show';
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(function() { el.classList.remove('show'); }, 2500);
+    }
+
+    // ===== AUDIO =====
+    function playBeep() {
+        try {
+            var ctx = new (window.AudioContext || window.webkitAudioContext)();
+            var o = ctx.createOscillator(), g = ctx.createGain();
+            o.connect(g); g.connect(ctx.destination);
+            o.frequency.value = 1200; o.type = 'square';
+            g.gain.setValueAtTime(0.08, ctx.currentTime);
+            o.start(); o.stop(ctx.currentTime + 0.08);
+        } catch(e) {}
+    }
+
+    // ===== FORMATTERS =====
+    function fmt(n) { return CURRENCY + Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+    function todayStr() { return new Date().toISOString().split('T')[0]; }
+    function dateStr(d) { if(!d) return '-'; return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
+    function timeStr(d) { if(!d) return ''; return new Date(d).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}); }
+    function dateTimeStr(d) { return dateStr(d)+' '+timeStr(d); }
+    function nextId(arr) { return arr.length ? Math.max.apply(null, arr.map(function(x){return x.id;})) + 1 : 1; }
+    function getCatName(id) { var c=(dbGet('categories')||[]).find(function(x){return x.id===id;}); return c?c.name:'-'; }
+    function getCustName(id) { var c=(dbGet('customers')||[]).find(function(x){return x.id===id;}); return c?c.name:'Walk-in'; }
+    function esc(s) { var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+
+    // ===== INIT DATABASE — FORCES DEFAULT USERS EVERY TIME =====
+    function initDB() {
+        // ALWAYS ensure admin and user exist with correct passwords
+        var users = dbGet('users');
+        if (!users || !Array.isArray(users)) users = [];
+
+        var adminExists = false, userExists = false;
+        for (var i = 0; i < users.length; i++) {
+            if (users[i].username === 'admin') { users[i].password = 'admin123'; users[i].role = 'admin'; adminExists = true; }
+            if (users[i].username === 'user') { users[i].password = 'user123'; users[i].role = 'user'; userExists = true; }
+        }
+        if (!adminExists) users.unshift({id:1, username:'admin', password:'admin123', role:'admin'});
+        if (!userExists) users.push({id:2, username:'user', password:'user123', role:'user'});
+        dbSet('users', users);
+
+        if (!dbGet('settings')) dbSet('settings', {shopName:'ShopEase',address:'Main Street',phone:'555-123-4567',upiId:'example@upi',shopImage:'',openingCash:0,nextBillId:1,isStoreClosed:false});
+        else { var s=dbGet('settings'); if(s.nextBillId===undefined)s.nextBillId=1; if(s.isStoreClosed===undefined)s.isStoreClosed=false; dbSet('settings',s); }
+        if (!dbGet('categories')) dbSet('categories', [{id:1,name:'Electronics'},{id:2,name:'Groceries'}]);
+        if (!dbGet('items')) dbSet('items', [
+            {id:1,name:'Wireless Mouse',code:'WM001',categoryId:1,brand:'Logitech',price:599,mrp:650,cost:400,stock:50,image:''},
+            {id:2,name:'Rice 5kg',code:'RIC05',categoryId:2,brand:'India Gate',price:450,mrp:500,cost:380,stock:100,image:''}
+        ]);
+        if (!dbGet('customers')) dbSet('customers', [{id:1,name:'John Doe',phone:'9876543210',address:'12 Market Road, Chennai',openingBalance:0,balance:0}]);
+        if (!dbGet('transactions')) dbSet('transactions', []);
+        if (!dbGet('ledger')) dbSet('ledger', []);
+        if (!dbGet('purchases')) dbSet('purchases', []);
+        if (!dbGet('expenses')) dbSet('expenses', []);
+        if (!dbGet('trash')) dbSet('trash', []);
+        if (!dbGet('priceHistory')) dbSet('priceHistory', []);
+
+        // Clear any stale session
+        dbRemove('currentUser');
+    }
+
+    // ===== RESET ALL DATA =====
+    function resetAllData() {
+        var keys = [];
+        for (var i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+        keys.forEach(function(k) { localStorage.removeItem(k); });
+        initDB();
+        currentUser = null;
+        document.getElementById('mainApp').classList.add('hidden');
+        document.getElementById('loginPage').classList.remove('hidden');
+        document.getElementById('loginUsername').value = '';
+        document.getElementById('loginPassword').value = '';
         document.getElementById('loginError').classList.add('hidden');
         toast('Database reset successfully');
     }
