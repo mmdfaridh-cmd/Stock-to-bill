@@ -16,61 +16,53 @@
             --border: #e9ecef; --card: #ffffff;
             --sidebar-width: 250px;
         }
-        
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--fg); min-height: 100vh; }
         .font-display { font-family: 'Space Grotesk', sans-serif; }
-        
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: var(--bg); }
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-        
         .input-field {
             background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
             padding: 0.65rem 1rem; color: var(--fg); width: 100%;
-            transition: all 0.2s ease; font-size: 15px;
+            transition: all 0.2s ease; font-size: 15px; font-family: 'DM Sans', sans-serif;
         }
         .input-field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
-        
+        textarea.input-field { resize: vertical; min-height: 60px; }
         .btn {
             padding: 0.65rem 1.25rem; border-radius: 8px; font-weight: 600;
             cursor: pointer; transition: all 0.2s ease; border: none;
             font-family: 'Space Grotesk', sans-serif; font-size: 14px;
             display: inline-flex; align-items: center; justify-content: center; gap: 8px;
         }
+        .btn:active { transform: scale(0.96); }
         .btn-primary { background: var(--accent); color: white; }
         .btn-primary:hover { filter: brightness(1.1); }
         .btn-secondary { background: var(--bg); color: var(--fg); border: 1px solid var(--border); }
-        .btn-danger { background: rgba(220, 53, 69, 0.1); color: var(--danger); }
-        .btn-success { background: rgba(25, 135, 84, 0.1); color: var(--success); }
-        .btn-warning { background: rgba(255, 193, 7, 0.1); color: #d39e00; }
-        
+        .btn-danger { background: rgba(220,53,69,0.1); color: var(--danger); }
+        .btn-success { background: rgba(25,135,84,0.1); color: var(--success); }
+        .btn-warning { background: rgba(255,193,7,0.1); color: #b8860b; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        
         .sidebar {
             background: var(--bg-elevated); border-right: 1px solid var(--border);
             width: var(--sidebar-width); height: 100vh; position: fixed; left: 0; top: 0; z-index: 40;
-            transform: translateX(-100%); transition: transform 0.3s ease;
-            display: flex; flex-direction: column;
+            transform: translateX(-100%); transition: transform 0.3s ease; display: flex; flex-direction: column;
         }
-        
         @media (min-width: 768px) {
             .sidebar { transform: translateX(0); box-shadow: 2px 0 5px rgba(0,0,0,0.02); }
             .main-content { margin-left: var(--sidebar-width); }
-            .mobile-header-btn { display: none; }
+            .mobile-header-btn { display: none !important; }
         }
-        
         .sidebar.open { transform: translateX(0); }
-        
         .nav-item {
             display: flex; align-items: center; gap: 12px; padding: 12px 20px;
             color: var(--muted); cursor: pointer; transition: all 0.2s ease;
-            border-left: 3px solid transparent;
+            border-left: 3px solid transparent; font-size: 14px;
         }
+        .nav-item:hover { background: var(--accent-dim); }
         .nav-item.active { color: var(--accent); background: var(--accent-dim); border-left-color: var(--accent); font-weight: 600; }
-        
         .modal-overlay {
-            position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 50;
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50;
             display: none; align-items: center; justify-content: center; padding: 1rem; backdrop-filter: blur(2px);
         }
         .modal-overlay.active { display: flex; }
@@ -80,32 +72,237 @@
             max-height: 90vh; overflow-y: auto; animation: slideUp 0.3s ease;
             box-shadow: 0 10px 25px rgba(0,0,0,0.1);
         }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
-        
+        @keyframes slideUp { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
         .badge { display: inline-flex; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.7rem; font-weight: 600; }
-        .badge-success { background: rgba(25, 135, 84, 0.1); color: var(--success); }
-        .badge-danger { background: rgba(220, 53, 69, 0.1); color: var(--danger); }
-        .badge-warning { background: rgba(255, 193, 7, 0.1); color: var(--warning); }
-        
+        .badge-success { background: rgba(25,135,84,0.1); color: var(--success); }
+        .badge-danger { background: rgba(220,53,69,0.1); color: var(--danger); }
+        .badge-warning { background: rgba(255,193,7,0.1); color: #b8860b; }
         .overlay-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 35; display: none; }
         .overlay-bg.active { display: block; }
-
         .shop-logo { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); }
-        .bill-item-img { width: 100%; height: 60px; object-fit: cover; background: var(--bg); border-radius: 6px; }
-        
         #reader { width: 100%; min-height: 250px; background: #000; border-radius: 12px; overflow: hidden; }
-        #reader video { border-radius: 12px; }
-        
-        .cart-input { width: 55px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 2px; text-align: center; font-size: 11px; }
+        .cart-input { width: 55px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 4px 2px; text-align: center; font-size: 12px; font-family: 'DM Sans', sans-serif; }
         .cart-input:focus { outline: none; border-color: var(--accent); }
-        
-        #printArea {
-            display: none;
-            position: fixed; inset: 0;
-            background: rgba(0,0,0,0.8);
-            z-index: 100;
-            overflow-y: auto;
-            align-items: center; justify-content: flex-start;
+        #printArea { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; overflow-y: auto; align-items: center; justify-content: flex-start; flex-direction: column; }
+        #printArea.active { display: flex; }
+        .print-container { width: 100%; background: white; box-shadow: 0 10px 25px rgba(0,0,0,0.2); display: flex; flex-direction: column; min-height: 100vh; }
+        @media (min-width: 640px) { #printArea { padding: 2rem 1rem; } .print-container { max-width: 400px; min-height: auto; margin: auto; border-radius: 12px; max-height: 90vh; } }
+        .print-controls { position: sticky; top: 0; background: white; padding: 12px 16px; border-bottom: 1px solid #eee; display: flex; flex-direction: column; gap: 8px; z-index: 10; }
+        @media (min-width: 400px) { .print-controls { flex-direction: row; justify-content: space-between; } }
+        .print-controls .btn { width: 100%; }
+        @media (min-width: 400px) { .print-controls .btn { width: auto; } }
+        @media print {
+            body { background: white !important; margin: 0 !important; padding: 0 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            #appContainer, .sidebar, header, .modal-overlay, #scannerModal, .overlay-bg, .toast { display: none !important; }
+            #printArea { display: block !important; position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; background: white !important; padding: 0 !important; }
+            .print-container { box-shadow: none !important; margin: 0 !important; max-width: 100% !important; min-height: auto !important; border-radius: 0 !important; }
+            .print-controls { display: none !important; }
+        }
+        #qrcode { width: 100px; height: 100px; margin: 5px auto; background: white; padding: 5px; border-radius: 8px; }
+        #qrcode img { margin: auto; }
+        .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); padding: 12px 24px; border-radius: 10px; font-size: 14px; font-weight: 600; z-index: 200; transition: transform 0.3s ease, opacity 0.3s ease; opacity: 0; pointer-events: none; font-family: 'Space Grotesk', sans-serif; white-space: nowrap; }
+        .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+        .toast-success { background: var(--success); color: white; }
+        .toast-error { background: var(--danger); color: white; }
+        .toast-info { background: var(--accent); color: white; }
+        .table-row { transition: background 0.15s ease; }
+        .table-row:hover { background: var(--accent-dim); }
+        .stat-card { transition: transform 0.15s ease; }
+        .stat-card:active { transform: scale(0.97); }
+    </style>
+</head>
+<body>
+    <div id="toastEl" class="toast"></div>
+
+    <div id="appContainer">
+        <!-- ===== LOGIN PAGE ===== -->
+        <div id="loginPage" class="min-h-screen flex items-center justify-center p-4 bg-[var(--bg)]">
+            <div class="w-full max-w-sm">
+                <div class="text-center mb-8">
+                    <div class="w-16 h-16 rounded-2xl bg-[var(--accent)] flex items-center justify-center font-display font-bold text-white text-2xl mx-auto mb-3">S</div>
+                    <h1 class="font-display text-4xl font-bold mb-2" id="loginTitle">ShopEase</h1>
+                    <p class="text-[var(--muted)]">Point of Sale System</p>
+                </div>
+                <div class="card">
+                    <h2 class="font-display text-xl font-bold mb-4">Sign In</h2>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-xs text-[var(--muted)] mb-1 block">Username</label>
+                            <input type="text" id="loginUsername" class="input-field" placeholder="Enter username" autocomplete="off">
+                        </div>
+                        <div>
+                            <label class="text-xs text-[var(--muted)] mb-1 block">Password</label>
+                            <input type="password" id="loginPassword" class="input-field" placeholder="Enter password">
+                        </div>
+                        <div class="flex items-center gap-2 mt-1">
+                            <input type="checkbox" id="isAdmin" class="w-4 h-4 rounded border-gray-300 accent-[var(--accent)]">
+                            <label for="isAdmin" class="text-sm text-[var(--muted)] select-none cursor-pointer">Login as Administrator</label>
+                        </div>
+                        <button id="loginBtn" class="btn btn-primary w-full mt-2" style="padding:0.75rem;">Sign In</button>
+                        <p id="loginError" class="text-[var(--danger)] text-sm text-center hidden"></p>
+                    </div>
+                </div>
+                <div class="text-center text-[var(--muted)] text-xs mt-6 space-y-1">
+                    <p><strong>Admin:</strong> admin / admin123</p>
+                    <p><strong>User:</strong> user / user123</p>
+                </div>
+                <p class="text-center text-xs text-[var(--border)] mt-4 cursor-pointer hover:text-[var(--danger)]" id="resetDataLink">Reset all data</p>
+            </div>
+        </div>
+
+        <!-- ===== MAIN APP ===== -->
+        <div id="mainApp" class="hidden">
+            <div class="overlay-bg" id="overlayBg"></div>
+            <aside class="sidebar" id="sidebar">
+                <div class="p-4 border-b border-[var(--border)] flex items-center gap-3">
+                    <img id="sidebarLogo" src="" class="shop-logo hidden">
+                    <div id="sidebarLogoPlaceholder" class="w-9 h-9 rounded-lg bg-[var(--accent)] flex items-center justify-center font-display font-bold text-white">S</div>
+                    <h1 class="font-display text-lg font-bold truncate" id="shopNameSidebar">ShopEase</h1>
+                </div>
+                <nav class="py-2 flex-1 overflow-y-auto" id="sideNav"></nav>
+                <div class="p-4 border-t border-[var(--border)]">
+                    <div class="flex justify-between items-center mb-3 px-2">
+                        <span id="currentUserDisplay" class="text-xs text-[var(--muted)]">Admin</span>
+                        <span id="currentRoleDisplay" class="badge badge-success">Admin</span>
+                    </div>
+                    <button id="logoutBtn" class="btn btn-danger w-full text-sm">Logout</button>
+                </div>
+            </aside>
+            <main class="main-content min-h-screen">
+                <header class="p-4 border-b border-[var(--border)] flex items-center bg-[var(--bg-elevated)] sticky top-0 z-30">
+                    <button id="menuBtn" class="p-2 -ml-2 hover:bg-[var(--bg)] rounded-lg mobile-header-btn">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+                    </button>
+                    <h2 id="pageTitle" class="font-display text-lg font-bold flex-1 text-center">Dashboard</h2>
+                    <div class="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center font-display font-bold text-white text-sm">
+                        <span id="userInitial">A</span>
+                    </div>
+                </header>
+                <div id="pageContent" class="p-4 md:p-6"></div>
+            </main>
+        </div>
+    </div>
+
+    <div id="printArea"></div>
+
+    <!-- Scanner Modal -->
+    <div id="scannerModal" class="modal-overlay">
+        <div class="modal-content" style="max-width:400px;" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-display font-bold">Scan Barcode</h3>
+                <button id="closeScannerBtn" class="text-[var(--muted)] hover:text-[var(--fg)] text-2xl leading-none">&times;</button>
+            </div>
+            <div id="reader"></div>
+            <div class="mt-4">
+                <input type="file" id="qr-input-file" accept="image/*" style="display:none">
+                <button id="uploadScanBtn" class="btn btn-secondary w-full">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                    Upload Image
+                </button>
+            </div>
+            <p class="text-center text-xs text-[var(--muted)] mt-3">Align barcode within the frame</p>
+        </div>
+    </div>
+
+    <!-- Generic Modal -->
+    <div id="modalOverlay" class="modal-overlay">
+        <div class="modal-content" id="modalContent" onclick="event.stopPropagation()"></div>
+    </div>
+
+    <script>
+    /* ============================================================
+       ShopEase POS — Full Application
+       ============================================================ */
+    (function() {
+        'use strict';
+
+        const CURRENCY = '\u20B9';
+
+        // ===== DATABASE LAYER =====
+        const DB = {
+            get: function(k) { try { return JSON.parse(localStorage.getItem('se_'+k)); } catch(e) { return null; } },
+            set: function(k, v) { localStorage.setItem('se_'+k, JSON.stringify(v)); },
+            remove: function(k) { localStorage.removeItem('se_'+k); },
+            allKeys: function() {
+                var keys = [];
+                for (var i = 0; i < localStorage.length; i++) {
+                    var key = localStorage.key(i);
+                    if (key && key.indexOf('se_') === 0) keys.push(key.substring(3));
+                }
+                return keys;
+            }
+        };
+
+        // ===== AUDIO =====
+        var audioCtx = null;
+        function getAudioCtx() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; }
+        function playBeep() { try { var ctx=getAudioCtx(),o=ctx.createOscillator(),g=ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.value=1200; o.type='square'; g.gain.setValueAtTime(0.08,ctx.currentTime); o.start(); o.stop(ctx.currentTime+0.08); } catch(e){} }
+
+        // ===== TOAST =====
+        function toast(msg, type) {
+            type = type || 'success';
+            var el = document.getElementById('toastEl');
+            el.textContent = msg;
+            el.className = 'toast toast-' + type + ' show';
+            clearTimeout(el._timer);
+            el._timer = setTimeout(function() { el.classList.remove('show'); }, 2500);
+        }
+
+        // ===== FORMATTERS =====
+        function fmt(n) { return CURRENCY + Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+        function todayStr() { return new Date().toISOString().split('T')[0]; }
+        function dateStr(d) { if(!d) return '-'; return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
+        function timeStr(d) { if(!d) return ''; return new Date(d).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}); }
+        function dateTimeStr(d) { return dateStr(d)+' '+timeStr(d); }
+        function nextId(arr) { return arr.length ? Math.max.apply(null, arr.map(function(x){return x.id;})) + 1 : 1; }
+        function getCatName(id) { var c=(DB.get('categories')||[]).find(function(x){return x.id===id;}); return c?c.name:'Uncategorized'; }
+        function getCustName(id) { var c=(DB.get('customers')||[]).find(function(x){return x.id===id;}); return c?c.name:'Walk-in'; }
+        function escHtml(s) { var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+
+        // ===== STATE =====
+        var cart = [];
+        var selectedCustomerId = null;
+        var currentUser = null;
+        var html5QrcodeScanner = null;
+        var currentPage = 'dashboard';
+        var posActiveCat = 'all';
+
+        // ===== INIT DATABASE =====
+        function initDB() {
+            // Always ensure default users exist
+            var users = DB.get('users');
+            var hasAdmin = users && Array.isArray(users) && users.some(function(u){ return u.username === 'admin'; });
+            var hasUser = users && Array.isArray(users) && users.some(function(u){ return u.username === 'user'; });
+            if (!hasAdmin || !hasUser) {
+                var existing = (users && Array.isArray(users)) ? users : [];
+                if (!hasAdmin) existing.push({ id: 1, username: 'admin', password: 'admin123', role: 'admin' });
+                if (!hasUser) existing.push({ id: 2, username: 'user', password: 'user123', role: 'user' });
+                DB.set('users', existing);
+            }
+
+            if (!DB.get('settings')) {
+                DB.set('settings', { shopName:'ShopEase', address:'Main Street', phone:'555-123-4567', upiId:'example@upi', shopImage:'', openingCash:0, nextBillId:1, isStoreClosed:false });
+            } else {
+                var s = DB.get('settings');
+                if (s.nextBillId === undefined) s.nextBillId = 1;
+                if (s.isStoreClosed === undefined) s.isStoreClosed = false;
+                DB.set('settings', s);
+            }
+            if (!DB.get('categories')) DB.set('categories', [{id:1,name:'Electronics'},{id:2,name:'Groceries'}]);
+            if (!DB.get('items')) DB.set('items', [
+                {id:1,name:'Wireless Mouse',code:'WM001',categoryId:1,brand:'Logitech',price:599,mrp:650,cost:400,stock:50,image:''},
+                {id:2,name:'Rice 5kg',code:'RIC05',categoryId:2,brand:'India Gate',price:450,mrp:500,cost:380,stock:100,image:''}
+            ]);
+            // Customers with address + openingBalance
+            if (!DB.get('customers')) DB.set('customers', [
+                {id:1, name:'John Doe', phone:'9876543210', address:'12 Market Road, Chennai', openingBalance:0, balance:0}
+            ]);
+            if (!DB.get('transactions')) DB.set('transactions', []);
+            if (!DB.get('ledger')) DB.set('ledger', []);
+            if (!DB.get('purchases')) DB.set('purchases', []);
+            if (!DB.get('expenses')) DB.set('expenses', []);
+            if (!DB.get('trash')) DB.set('trash', []);
+            if (!DB.get('priceHistory')) DB.set            align-items: center; justify-content: flex-start;
             flex-direction: column;
         }
         #printArea.active { display: flex; }
