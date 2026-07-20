@@ -1085,17 +1085,15 @@
             let totalDefaultPrice = 0;
             let totalSellingValue = 0;
             let itemDiscountTotal = 0;
-            let itemMarkupTotal = 0;
             
             const cartHtml = cart.map(i => {
-                totalDefaultPrice += i.defaultPrice * i.qty;
-                totalSellingValue += i.sellPrice * i.qty;
-                
                 if (i.defaultPrice > i.sellPrice) {
+                    totalDefaultPrice += i.defaultPrice * i.qty;
                     itemDiscountTotal += (i.defaultPrice - i.sellPrice) * i.qty;
-                } else if (i.sellPrice > i.defaultPrice) {
-                    itemMarkupTotal += (i.sellPrice - i.defaultPrice) * i.qty;
+                } else {
+                    totalDefaultPrice += i.sellPrice * i.qty; 
                 }
+                totalSellingValue += i.sellPrice * i.qty;
                 
                 let itemDiscPercent = 0;
                 if(i.defaultPrice > 0 && i.defaultPrice > i.sellPrice) itemDiscPercent = ((i.defaultPrice - i.sellPrice) / i.defaultPrice) * 100;
@@ -1107,16 +1105,12 @@
 
             const billDiscountAmount = totalSellingValue * (discountPercent / 100);
             const totalDiscount = itemDiscountTotal + billDiscountAmount;
-            const billTotal = totalSellingValue - billDiscountAmount;
+            const billTotal = totalDefaultPrice - totalDiscount;
 
             let totalsHtml = `<div class="flex justify-between text-sm text-[var(--muted)] mb-1"><span>Subtotal</span><span>${CURRENCY}${totalDefaultPrice.toFixed(0)}</span></div>`;
             
             if(totalDiscount > 0) {
                 totalsHtml += `<div class="flex justify-between text-sm text-[var(--danger)] mb-2"><span>Total Discount</span><span>-${CURRENCY}${totalDiscount.toFixed(0)}</span></div>`;
-            }
-            
-            if(itemMarkupTotal > 0) {
-                totalsHtml += `<div class="flex justify-between text-sm text-[var(--success)] mb-2"><span>Price Increase</span><span>+${CURRENCY}${itemMarkupTotal.toFixed(0)}</span></div>`;
             }
             
             totalsHtml += `<div class="flex justify-between font-display font-bold text-lg mb-1"><span>Bill Total</span><span class="text-[var(--accent)]">${CURRENCY}${billTotal.toFixed(0)}</span></div>`;
@@ -1148,21 +1142,20 @@
             let totalDefaultPrice = 0; 
             let totalSellingValue = 0;
             let itemDiscount = 0; 
-            let itemMarkup = 0;
             
             cart.forEach(i => { 
-                totalDefaultPrice += i.defaultPrice * i.qty; 
-                totalSellingValue += i.sellPrice * i.qty; 
+                totalSellingValue += i.sellPrice * i.qty;
                 if (i.defaultPrice > i.sellPrice) {
+                    totalDefaultPrice += i.defaultPrice * i.qty;
                     itemDiscount += (i.defaultPrice - i.sellPrice) * i.qty;
-                } else if (i.sellPrice > i.defaultPrice) {
-                    itemMarkup += (i.sellPrice - i.defaultPrice) * i.qty;
+                } else {
+                    totalDefaultPrice += i.sellPrice * i.qty;
                 }
             });
             
             const billDiscount = totalSellingValue * (discountPercent / 100);
             const totalDiscount = itemDiscount + billDiscount;
-            const total = totalSellingValue - billDiscount; 
+            const total = totalDefaultPrice - totalDiscount; 
             
             const profit = cart.reduce((a,i)=>a+((i.sellPrice-i.cost)*i.qty),0) - billDiscount; 
 
@@ -1184,7 +1177,6 @@
                 items: cart.map(i=>({id: i.id, name:i.name, price:i.sellPrice, mrp: i.mrp, defaultPrice: i.defaultPrice, brand: i.brand, categoryName: i.categoryName, qty:i.qty, cost: i.cost})),
                 totalDefaultPrice,
                 itemDiscount,
-                itemMarkup,
                 discountPercent,
                 billDiscount,
                 totalDiscount,
@@ -1262,7 +1254,6 @@
                             </table>
                             <div style="border-top: 2px solid #000; margin-top: 10px; padding-top: 10px;">
                                 <div style="display: flex; justify-content: space-between; font-size: 12px;"><span>Subtotal:</span><span>${CURRENCY}${(tx.totalDefaultPrice || tx.total).toFixed(0)}</span></div>
-                                ${tx.itemMarkup > 0 ? `<div style="display: flex; justify-content: space-between; font-size: 12px; color: #198754;"><span>Price Increase:</span><span>+${CURRENCY}${tx.itemMarkup.toFixed(0)}</span></div>` : ''}
                                 ${tx.totalDiscount > 0 ? `<div style="display: flex; justify-content: space-between; font-size: 12px; color: #dc3545;"><span>Total Discount:</span><span>-${CURRENCY}${(tx.totalDiscount || 0).toFixed(0)}</span></div>` : ''}
                                 <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-top: 6px; border-top: 1px solid #000; padding-top: 6px;"><span>TOTAL:</span><span>${CURRENCY}${tx.total.toFixed(0)}</span></div>
                             </div>
