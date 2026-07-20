@@ -186,6 +186,10 @@
                 <div class="text-center text-[var(--muted)] text-xs mt-6 space-y-1">
                     <p>Admin: admin / admin123</p>
                     <p>User: user / user123</p>
+                    <div class="flex gap-2 justify-center mt-4">
+                        <button onclick="manualBackup()" class="btn btn-secondary text-xs py-1 px-3">Backup Data</button>
+                        <button onclick="resetPasswordFromLogin()" class="btn btn-secondary text-xs py-1 px-3">Reset Password</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -250,7 +254,6 @@
 
     <script>
         const CURRENCY = '₹';
-        const BACKUP_KEY = 'lastBackupTime';
 
         const DB = {
             get: (key) => JSON.parse(localStorage.getItem(key)),
@@ -285,7 +288,7 @@
                 { id: 1, name: 'Wireless Mouse', code: 'WM001', categoryId: 1, brand: 'Logitech', price: 599, mrp: 650, cost: 400, stock: 50, image: '' },
                 { id: 2, name: 'Rice 5kg', code: 'RIC05', categoryId: 2, brand: 'India Gate', price: 450, mrp: 500, cost: 380, stock: 100, image: '' }
             ]);
-            if (!DB.get('customers')) DB.set('customers', [{ id: 1, name: 'John Doe', phone: '9876543210', balance: 0 }]);
+            if (!DB.get('customers')) DB.set('customers', [{ id: 1, name: 'John Doe', phone: '9876543210', address: '123 Main St', balance: 0 }]);
             if (!DB.get('transactions')) DB.set('transactions', []);
             if (!DB.get('ledger')) DB.set('ledger', []);
             if (!DB.get('purchases')) DB.set('purchases', []);
@@ -293,7 +296,8 @@
             if (!DB.get('trash')) DB.set('trash', []);
             if (!DB.get('stockClosings')) DB.set('stockClosings', []);
             if (!DB.get('withdrawals')) DB.set('withdrawals', []); 
-            if (!DB.get('priceHistory')) DB.set('priceHistory', []); 
+            if (!DB.get('priceHistory')) DB.set('priceHistory', []);
+            if (!DB.get('returnsLosses')) DB.set('returnsLosses', []);
         }
         initDB();
 
@@ -325,25 +329,13 @@
             document.getElementById('currentRoleDisplay').textContent = currentUser.role;
             if(settings.shopImage) { document.getElementById('sidebarLogo').src = settings.shopImage; document.getElementById('sidebarLogo').classList.remove('hidden'); document.getElementById('sidebarLogoPlaceholder').classList.add('hidden'); }
             cleanTrash(); setupNavigation(); 
-            checkDailyBackup(); // Check for daily backup
             showPage('dashboard');
         }
 
         // ===== BACKUP SYSTEM =====
-        function checkDailyBackup() {
-            const lastBackup = DB.get(BACKUP_KEY);
-            const now = new Date();
-            const twentyFourHours = 24 * 60 * 60 * 1000;
-            
-            if (!lastBackup || (now - new Date(lastBackup) > twentyFourHours)) {
-                console.log("Initiating daily backup...");
-                triggerAutoBackup();
-            }
-        }
-
-        function triggerAutoBackup() {
+        function manualBackup() {
             const data = {};
-            const keysToBackup = ['users', 'settings', 'categories', 'items', 'customers', 'transactions', 'ledger', 'purchases', 'expenses', 'trash', 'stockClosings', 'withdrawals', 'priceHistory'];
+            const keysToBackup = ['users', 'settings', 'categories', 'items', 'customers', 'transactions', 'ledger', 'purchases', 'expenses', 'trash', 'stockClosings', 'withdrawals', 'priceHistory', 'returnsLosses'];
             
             keysToBackup.forEach(key => {
                 const val = localStorage.getItem(key);
@@ -355,18 +347,27 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `shopease_daily_${new Date().toISOString().split('T')[0]}.json`;
+            a.download = `shopease_backup_${new Date().toISOString().split('T')[0]}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-
-            DB.set(BACKUP_KEY, new Date().toISOString());
-            alert("Daily automatic backup downloaded successfully!");
+            alert("Backup downloaded successfully!");
         }
 
-        function manualBackup() {
-            triggerAutoBackup(); // Reuse logic
+        function resetPasswordFromLogin() {
+            const username = prompt("Enter username to reset password:");
+            if(!username) return;
+            let users = DB.get('users') || [];
+            const idx = users.findIndex(u => u.username.toLowerCase() === username.trim().toLowerCase());
+            if(idx !== -1) {
+                const defaultPass = users[idx].role === 'admin' ? 'admin123' : 'user123';
+                users[idx].password = defaultPass;
+                DB.set('users', users);
+                alert(`Password for ${users[idx].username} has been reset to: ${defaultPass}`);
+            } else {
+                alert("User not found.");
+            }
         }
 
         function restoreData(event) {
@@ -383,11 +384,9 @@
                     
                     if(!confirm("This will overwrite all current data. Are you sure?")) return;
 
-                    // Clear current data
-                    const keysToClear = ['users', 'settings', 'categories', 'items', 'customers', 'transactions', 'ledger', 'purchases', 'expenses', 'trash', 'stockClosings', 'withdrawals', 'priceHistory'];
+                    const keysToClear = ['users', 'settings', 'categories', 'items', 'customers', 'transactions', 'ledger', 'purchases', 'expenses', 'trash', 'stockClosings', 'withdrawals', 'priceHistory', 'returnsLosses'];
                     keysToClear.forEach(key => localStorage.removeItem(key));
 
-                    // Set new data
                     for (const [key, value] of Object.entries(content.data)) {
                         localStorage.setItem(key, JSON.stringify(value));
                     }
@@ -399,7 +398,7 @@
                 }
             };
             reader.readAsText(file);
-            event.target.value = ''; // Reset input
+            event.target.value = ''; 
         }
 
         function clearAllData() {
@@ -411,12 +410,12 @@
             location.reload();
         }
 
-
         const navItems = [
             { id: 'dashboard', label: 'Dashboard', icon: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>', roles: ['admin', 'user'] },
             { id: 'billing', label: 'Billing', icon: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>', roles: ['admin', 'user'] },
             { id: 'items', label: 'Items', icon: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0"/></svg>', roles: ['admin', 'user'] },
             { id: 'purchases', label: 'Purchases', icon: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3zM12 8v8M8 12h8"/></svg>', roles: ['admin', 'user'] },
+            { id: 'returns', label: 'Returns/Losses', icon: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9M3 12l4-4M3 12l4 4"/></svg>', roles: ['admin', 'user'] },
             { id: 'expenses', label: 'Expenses', icon: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>', roles: ['admin'] },
             { id: 'stockclose', label: 'Stock Closing', icon: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>', roles: ['admin'] },
             { id: 'ledger', label: 'Ledger', icon: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>', roles: ['admin', 'user'] },
@@ -427,7 +426,7 @@
 
         function setupNavigation() { const nav = document.getElementById('sideNav'); nav.innerHTML = navItems.filter(item => item.roles.includes(currentUser.role)).map(item => `<div class="nav-item" data-page="${item.id}">${item.icon}<span>${item.label}</span></div>`).join(''); document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', () => showPage(n.dataset.page))); }
         function toggleSidebar() { if(window.innerWidth < 768) { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('overlayBg').classList.toggle('active'); } }
-        function showPage(page) { const item = navItems.find(n => n.id === page); if(item && !item.roles.includes(currentUser.role)) { alert('Access Denied'); return; } document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active')); document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active'); document.getElementById('pageTitle').textContent = page.charAt(0).toUpperCase() + page.slice(1); toggleSidebar(); const pages = { dashboard: renderDashboard, items: renderItems, customers: renderCustomers, billing: renderBilling, reports: renderReports, settings: renderSettings, ledger: renderLedger, purchases: renderPurchases, expenses: renderExpenses, stockclose: renderStockClose }; pages[page](); }
+        function showPage(page) { const item = navItems.find(n => n.id === page); if(item && !item.roles.includes(currentUser.role)) { alert('Access Denied'); return; } document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active')); document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active'); document.getElementById('pageTitle').textContent = page.charAt(0).toUpperCase() + page.slice(1); toggleSidebar(); const pages = { dashboard: renderDashboard, items: renderItems, customers: renderCustomers, billing: renderBilling, reports: renderReports, settings: renderSettings, ledger: renderLedger, purchases: renderPurchases, expenses: renderExpenses, stockclose: renderStockClose, returns: renderReturns }; pages[page](); }
 
         function openModal(html) { document.getElementById('modalContent').innerHTML = html; document.getElementById('modalOverlay').classList.add('active'); }
         function closeModal() { document.getElementById('modalOverlay').classList.remove('active'); }
@@ -875,6 +874,109 @@
             renderPurchases(); 
         }
 
+        // ===== RETURNS & LOSSES =====
+        function renderReturns() {
+            const returns = DB.get('returnsLosses') || [];
+            document.getElementById('pageContent').innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-display font-bold text-lg">Returns & Losses</h3>
+                    <button onclick="openReturnModal()" class="btn btn-primary">Add Return/Loss</button>
+                </div>
+                <div class="card">
+                    <div class="space-y-2">
+                        ${returns.slice().reverse().map(r => `
+                            <div class="flex justify-between items-center p-2 border-b border-[var(--border)]">
+                                <div>
+                                    <p class="font-medium">${r.itemName}</p>
+                                    <p class="text-xs text-[var(--muted)]">
+                                        ${new Date(r.date).toLocaleString()} - 
+                                        Full: <span class="font-medium">${r.goodQty}</span> | 
+                                        Damaged: <span class="font-medium text-[var(--danger)]">${r.damagedQty}</span> | 
+                                        Expired: <span class="font-medium text-[var(--warning)]">${r.expiredQty}</span>
+                                    </p>
+                                    ${r.note ? `<p class="text-xs text-[var(--muted)] mt-1">Note: ${r.note}</p>` : ''}
+                                </div>
+                                <button onclick="deleteReturn(${r.id})" class="text-[var(--danger)] text-sm">Del</button>
+                            </div>
+                        `).join('') || '<p class="text-center text-[var(--muted)] py-4">No returns or losses recorded</p>'}
+                    </div>
+                </div>`;
+        }
+
+        function openReturnModal() {
+            const items = DB.get('items') || [];
+            openModal(`
+                <h3 class="font-display font-bold mb-4">Record Return / Loss</h3>
+                <div class="space-y-3">
+                    <select id="returnItem" class="input-field">
+                        <option value="">Select Item</option>
+                        ${items.map(i => `<option value="${i.id}">${i.name} (Stock: ${i.stock})</option>`).join('')}
+                    </select>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="text-xs text-[var(--muted)]">Full Qty</label>
+                            <input type="number" id="returnGoodQty" class="input-field" value="0" min="0">
+                        </div>
+                        <div>
+                            <label class="text-xs text-[var(--muted)]">Damaged Qty</label>
+                            <input type="number" id="returnDamagedQty" class="input-field" value="0" min="0">
+                        </div>
+                        <div>
+                            <label class="text-xs text-[var(--muted)]">Expired Qty</label>
+                            <input type="number" id="returnExpiredQty" class="input-field" value="0" min="0">
+                        </div>
+                    </div>
+                    <input type="date" id="returnDate" class="input-field" value="${new Date().toISOString().split('T')[0]}">
+                    <input type="text" id="returnNote" class="input-field" placeholder="Note (Optional)">
+                    <button onclick="saveReturn()" class="btn btn-primary w-full">Save</button>
+                </div>
+            `);
+        }
+
+        function saveReturn() {
+            const itemId = parseInt(document.getElementById('returnItem').value);
+            const goodQty = parseInt(document.getElementById('returnGoodQty').value) || 0;
+            const damagedQty = parseInt(document.getElementById('returnDamagedQty').value) || 0;
+            const expiredQty = parseInt(document.getElementById('returnExpiredQty').value) || 0;
+            const date = document.getElementById('returnDate').value;
+            const note = document.getElementById('returnNote').value.trim();
+            
+            if(!itemId) return alert('Select an item');
+            const totalReturn = goodQty + damagedQty + expiredQty;
+            if(totalReturn <= 0) return alert('Enter at least one quantity');
+
+            let items = DB.get('items') || [];
+            const idx = items.findIndex(i => i.id === itemId);
+            if(idx === -1) return alert('Item not found');
+            
+            if(items[idx].stock < totalReturn) return alert(`Insufficient stock. Available: ${items[idx].stock}`);
+            
+            items[idx].stock -= totalReturn;
+            DB.set('items', items);
+            
+            const returns = DB.get('returnsLosses') || [];
+            returns.push({
+                id: Date.now(),
+                itemId,
+                itemName: items[idx].name,
+                goodQty,
+                damagedQty,
+                expiredQty,
+                date: new Date(date).toISOString(),
+                note
+            });
+            DB.set('returnsLosses', returns);
+            
+            closeModal();
+            renderReturns();
+        }
+
+        function deleteReturn(id) {
+            if(!confirm('Delete this record? Stock will NOT be restored automatically.')) return;
+            DB.set('returnsLosses', (DB.get('returnsLosses')||[]).filter(r => r.id !== id));
+            renderReturns();
+        }
+
         function renderExpenses() { const expenses = DB.get('expenses') || []; document.getElementById('pageContent').innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="font-display font-bold text-lg">Daily Expenses</h3><button onclick="openExpenseModal()" class="btn btn-primary">Add Expense</button></div><div class="card"><div class="space-y-2">${expenses.slice().reverse().map(e => `<div class="flex justify-between items-center p-2 border-b border-[var(--border)]"><div><p class="font-medium">${e.description}</p><p class="text-xs text-[var(--muted)]">${new Date(e.date).toLocaleString()}</p></div><div class="text-right"><p class="font-display font-bold text-[var(--danger)]">${CURRENCY}${e.amount.toFixed(0)}</p><button onclick="deleteExpense(${e.id})" class="text-xs text-[var(--muted)] hover:text-[var(--danger)]">Del</button></div></div>`).join('') || '<p class="text-center text-[var(--muted)] py-4">No expenses</p>'}</div></div>`; }
         function openExpenseModal() { openModal(`<h3 class="font-display font-bold mb-4">Add Expense</h3><div class="space-y-3"><input type="text" id="expDesc" class="input-field" placeholder="Description"><input type="number" id="expAmount" class="input-field" placeholder="Amount"><input type="date" id="expDate" class="input-field" value="${new Date().toISOString().split('T')[0]}"><button onclick="saveExpense()" class="btn btn-primary w-full">Save</button></div>`); }
         function saveExpense() { const description = document.getElementById('expDesc').value.trim(); const amount = parseFloat(document.getElementById('expAmount').value); const date = document.getElementById('expDate').value; if(!description || !amount) return alert('Missing fields'); let expenses = DB.get('expenses') || []; expenses.push({ id: Date.now(), description, amount, date: new Date(date).toISOString() }); DB.set('expenses', expenses); closeModal(); renderExpenses(); }
@@ -891,7 +993,7 @@
                     <div class="lg:col-span-2">
                         <div class="flex gap-2 mb-3">
                             <input type="text" id="scanInput" class="input-field flex-1" placeholder="Scan or type name..." onkeydown="handleScanKey(event)" oninput="handleSearchInput()">
-                            <button onclick="openCameraScanner()" class="btn btn-secondary p-3"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3"/></svg></button>
+                            <button onclick="openCameraScanner()" class="btn btn-secondary p-3"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812-1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3"/></svg></button>
                         </div>
                         <div class="grid grid-cols-3 sm:grid-cols-4 gap-2" id="billItems"></div>
                         <div class="mt-6">
@@ -1183,7 +1285,23 @@
             const priceHistory = DB.get('priceHistory') || [];
             const periodPriceChanges = priceHistory.filter(p => { const d = new Date(p.date); return d >= from && d <= to; });
 
-            // Calculate Top Selling Items by Month
+            // Returns & Losses Calculations
+            const returnsLosses = DB.get('returnsLosses') || [];
+            const periodReturns = returnsLosses.filter(r => { 
+                const d = new Date(r.date); 
+                return d >= from && d <= to; 
+            });
+            let totGoodRet = 0, totDamaged = 0, totExpired = 0, lossValue = 0;
+            const allItems = DB.get('items') || [];
+            periodReturns.forEach(r => {
+                totGoodRet += r.goodQty;
+                totDamaged += r.damagedQty;
+                totExpired += r.expiredQty;
+                const item = allItems.find(i => i.id === r.itemId);
+                const cost = item ? item.cost : 0;
+                lossValue += (r.damagedQty + r.expiredQty) * cost; // Damaged + Expired as losses
+            });
+
             const monthlyStats = {};
             filtered.forEach(t => {
                 const monthKey = new Date(t.date).toLocaleString('en-US', { year: 'numeric', month: 'short' });
@@ -1202,7 +1320,7 @@
                     if (stats.qty > topItem.qty) topItem = { name, ...stats };
                 });
                 return `<div class="p-2 bg-[var(--bg)] rounded text-xs flex justify-between"><span><span class="font-bold text-[var(--accent)]">${month}</span><br>Top: ${topItem.name}</span><span class="text-right">Qty: ${topItem.qty}<br><span class="text-[var(--muted)]">${CURRENCY}${topItem.revenue.toFixed(0)}</span></span></div>`;
-            }).join('');
+            }).join('')
 
             document.getElementById('reportContent').innerHTML = `
                 <div class="grid grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
@@ -1223,29 +1341,106 @@
                         <table class="w-full text-sm"><thead><tr class="border-b"><th class="text-left py-2">ID</th><th class="text-left">Date</th><th class="text-left">Customer</th><th class="text-right">Disc</th><th class="text-right">Total</th><th class="text-center">Action</th></tr></thead><tbody>${filtered.slice().reverse().map(t => `<tr class="border-b"><td class="py-2">#${t.id}</td><td>${new Date(t.date).toLocaleDateString()}</td><td>${t.customerName}</td><td class="text-right text-[var(--danger)]">${CURRENCY}${(t.totalDiscount||0).toFixed(0)}</td><td class="text-right font-bold">${CURRENCY}${t.total.toFixed(0)}</td><td class="text-center"><button onclick="reprintBill(${t.id})" class="btn btn-secondary text-xs py-1 px-2">View</button></td></tr>`).join('')}</tbody></table>
                     </div>
                 </div>
-                <div class="card">
-                    <h4 class="font-bold mb-3">Purchase Price Changes</h4>
-                    <div class="space-y-2 max-h-64 overflow-y-auto">
-                        ${periodPriceChanges.slice().reverse().map(p => `
-                            <div class="p-2 bg-[var(--bg)] rounded-lg text-xs">
-                                <div class="flex justify-between">
-                                    <span class="font-medium">${p.itemName}</span>
-                                    <span class="text-[var(--muted)]">${new Date(p.date).toLocaleDateString()}</span>
+                <div class="grid lg:grid-cols-2 gap-4 mb-4">
+                    <div class="card">
+                        <h4 class="font-bold mb-3">Purchase Price Changes</h4>
+                        <div class="space-y-2 max-h-64 overflow-y-auto">
+                            ${periodPriceChanges.slice().reverse().map(p => `
+                                <div class="p-2 bg-[var(--bg)] rounded-lg text-xs">
+                                    <div class="flex justify-between">
+                                        <span class="font-medium">${p.itemName}</span>
+                                        <span class="text-[var(--muted)]">${new Date(p.date).toLocaleDateString()}</span>
+                                    </div>
+                                    <div class="flex justify-between mt-1">
+                                        <span>Cost: <span class="text-[var(--danger)]">${CURRENCY}${p.oldCost}</span> → <span class="text-[var(--success)]">${CURRENCY}${p.newCost}</span></span>
+                                        <span class="font-bold ${p.change >= 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'}">${p.change >= 0 ? '+' : ''}${CURRENCY}${p.change.toFixed(0)}</span>
+                                    </div>
                                 </div>
-                                <div class="flex justify-between mt-1">
-                                    <span>Cost: <span class="text-[var(--danger)]">${CURRENCY}${p.oldCost}</span> → <span class="text-[var(--success)]">${CURRENCY}${p.newCost}</span></span>
-                                    <span class="font-bold ${p.change >= 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'}">${p.change >= 0 ? '+' : ''}${CURRENCY}${p.change.toFixed(0)}</span>
-                                </div>
+                            `).join('') || '<p class="text-center text-[var(--muted)] py-4">No price changes in this period</p>'}
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h4 class="font-bold mb-3">Returns & Losses</h4>
+                        <div class="grid grid-cols-2 gap-2 mb-3">
+                            <div class="bg-[var(--bg)] p-2 rounded-lg text-center">
+                                <p class="text-xs text-[var(--muted)]">Total Good Returns</p>
+                                <p class="font-display text-lg font-bold">${totGoodRet}</p>
                             </div>
-                        `).join('') || '<p class="text-center text-[var(--muted)] py-4">No price changes in this period</p>'}
+                            <div class="bg-[var(--bg)] p-2 rounded-lg text-center">
+                                <p class="text-xs text-[var(--muted)]">Damaged / Expired Qty</p>
+                                <p class="font-display text-lg font-bold text-[var(--danger)]">${totDamaged + totExpired}</p>
+                            </div>
+                        </div>
+                        <div class="bg-red-50 border border-red-200 p-2 rounded-lg text-center mb-3">
+                            <p class="text-xs text-red-600">Estimated Loss Value</p>
+                            <p class="font-display text-xl font-bold text-red-700">${CURRENCY}${lossValue.toFixed(0)}</p>
+                        </div>
+                        <div class="space-y-2 max-h-40 overflow-y-auto">
+                            ${periodReturns.slice().reverse().map(r => `
+                                <div class="p-2 bg-[var(--bg)] rounded-lg text-xs">
+                                    <div class="flex justify-between">
+                                        <span class="font-medium">${r.itemName}</span>
+                                        <span class="text-[var(--muted)]">${new Date(r.date).toLocaleDateString()}</span>
+                                    </div>
+                                    <div class="flex gap-3 mt-1 text-[11px]">
+                                        <span>Full: <b>${r.goodQty}</b></span>
+                                        <span class="text-[var(--danger)]">Damaged: <b>${r.damagedQty}</b></span>
+                                        <span class="text-[var(--warning)]">Expired: <b>${r.expiredQty}</b></span>
+                                    </div>
+                                    ${r.note ? `<p class="text-[10px] text-[var(--muted)] mt-1">${r.note}</p>` : ''}
+                                </div>
+                            `).join('') || '<p class="text-center text-[var(--muted)] py-4">No returns or losses in this period</p>'}
+                        </div>
                     </div>
                 </div>
             `; 
         }
 
-        function renderCustomers() { const cust = DB.get('customers') || []; document.getElementById('pageContent').innerHTML = `<div class="flex justify-between items-center mb-4"><p class="text-[var(--muted)] text-sm">${cust.length} customers</p><button onclick="openCustomerModal()" class="btn btn-primary text-sm py-2 px-4">Add</button></div><div class="grid md:grid-cols-2 gap-3">${cust.map(c => `<div class="card flex justify-between items-center"><div onclick="viewCustomerLedger(${c.id})" class="cursor-pointer flex-1"><p class="font-medium">${c.name} <span class="text-[var(--muted)] text-xs">${c.phone}</span></p><p class="text-sm mt-1">Bal: <span class="font-bold ${c.balance > 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'}">${CURRENCY}${(c.balance||0).toFixed(0)}</span></p></div><button onclick="deleteCustomer(${c.id})" class="text-[var(--danger)] text-sm">Del</button></div>`).join('')}</div>`; }
-        function openCustomerModal() { openModal(`<h3 class="font-display font-bold mb-4">Add Customer</h3><div class="space-y-3"><input type="text" id="cName" class="input-field" placeholder="Name"><input type="tel" id="cPhone" class="input-field" placeholder="Phone"><button onclick="saveCustomer()" class="btn btn-primary w-full">Save</button></div>`); }
-        function saveCustomer() { const name = document.getElementById('cName').value.trim(); const phone = document.getElementById('cPhone').value.trim(); if(!name) return; const cust = DB.get('customers') || []; cust.push({id: Date.now(), name, phone, balance: 0}); DB.set('customers', cust); closeModal(); renderCustomers(); }
+        function renderCustomers() { 
+            const cust = DB.get('customers') || []; 
+            document.getElementById('pageContent').innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <p class="text-[var(--muted)] text-sm">${cust.length} customers</p>
+                    <button onclick="openCustomerModal()" class="btn btn-primary text-sm py-2 px-4">Add</button>
+                </div>
+                <div class="grid md:grid-cols-2 gap-3">
+                    ${cust.map(c => `
+                        <div class="card flex justify-between items-center">
+                            <div onclick="viewCustomerLedger(${c.id})" class="cursor-pointer flex-1">
+                                <p class="font-medium">${c.name} <span class="text-[var(--muted)] text-xs">${c.phone}</span></p>
+                                <p class="text-xs text-[var(--muted)]">${c.address || ''}</p>
+                                <p class="text-sm mt-1">Bal: <span class="font-bold ${c.balance > 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'}">${CURRENCY}${(c.balance||0).toFixed(0)}</span></p>
+                            </div>
+                            <button onclick="deleteCustomer(${c.id})" class="text-[var(--danger)] text-sm">Del</button>
+                        </div>
+                    `).join('')}
+                </div>`; 
+        }
+
+        function openCustomerModal() { 
+            openModal(`
+                <h3 class="font-display font-bold mb-4">Add Customer</h3>
+                <div class="space-y-3">
+                    <input type="text" id="cName" class="input-field" placeholder="Name">
+                    <input type="tel" id="cPhone" class="input-field" placeholder="Phone">
+                    <input type="text" id="cAddress" class="input-field" placeholder="Address">
+                    <input type="number" id="cOpeningBalance" class="input-field" placeholder="Opening Balance (Due)">
+                    <button onclick="saveCustomer()" class="btn btn-primary w-full">Save</button>
+                </div>`); 
+        }
+        
+        function saveCustomer() { 
+            const name = document.getElementById('cName').value.trim(); 
+            const phone = document.getElementById('cPhone').value.trim(); 
+            const address = document.getElementById('cAddress').value.trim(); 
+            const openingBalance = parseFloat(document.getElementById('cOpeningBalance').value) || 0;
+            if(!name) return; 
+            const cust = DB.get('customers') || []; 
+            cust.push({id: Date.now(), name, phone, address, balance: openingBalance}); 
+            DB.set('customers', cust); 
+            closeModal(); 
+            renderCustomers(); 
+        }
         function deleteCustomer(id) { if(!confirm('Move to trash?')) return; let cust = DB.get('customers') || []; const c = cust.find(x=>x.id===id); if(c){ moveToTrash('customer', c); DB.set('customers', cust.filter(x=>x.id!==id)); renderCustomers(); } }
 
         // ===== LEDGER =====
@@ -1416,7 +1611,6 @@
             const settings = DB.get('settings'); 
             const users = DB.get('users') || []; 
             const trash = DB.get('trash') || [];
-            const lastBackup = DB.get(BACKUP_KEY);
             
             document.getElementById('pageContent').innerHTML = `
                 <div class="grid md:grid-cols-2 gap-4">
@@ -1447,8 +1641,8 @@
                             <div class="space-y-3">
                                 <div class="flex justify-between items-center p-2 bg-[var(--bg)] rounded-lg">
                                     <div>
-                                        <p class="text-sm font-medium">Last Daily Backup</p>
-                                        <p class="text-xs text-[var(--muted)]">${lastBackup ? new Date(lastBackup).toLocaleString() : 'Never'}</p>
+                                        <p class="text-sm font-medium">Data Backup</p>
+                                        <p class="text-xs text-[var(--muted)]">Click to download backup file</p>
                                     </div>
                                     <button onclick="manualBackup()" class="btn btn-warning text-xs py-1 px-3">Backup Now</button>
                                 </div>
@@ -1508,6 +1702,7 @@
                     <p class="text-xs text-[var(--muted)] -mt-2">Enter a new password only if you want to change it.</p>
                     <div class="flex gap-3 pt-2">
                         <button onclick="saveUser()" class="btn btn-primary flex-1">Save</button>
+                        <button onclick="resetUserPassword()" class="btn btn-warning flex-1">Reset Password</button>
                         <button onclick="closeModal()" class="btn btn-secondary">Cancel</button>
                     </div>
                 </div>
@@ -1542,6 +1737,19 @@
                 renderSettings();
             } else {
                 alert("User not found.");
+            }
+        }
+
+        function resetUserPassword() {
+            const userId = parseInt(document.getElementById('editUserId').value);
+            if(!confirm('Reset password to "password123"?')) return;
+            let users = DB.get('users') || [];
+            const idx = users.findIndex(u => u.id === userId);
+            if(idx !== -1) {
+                users[idx].password = 'password123';
+                DB.set('users', users);
+                alert('Password has been reset to "password123".');
+                closeModal();
             }
         }
 
