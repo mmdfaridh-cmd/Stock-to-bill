@@ -622,10 +622,10 @@
                 let categoryId = null;
                 if (categoryIndex !== -1) {
                     const catName = values[categoryIndex]; let cat = categories.find(c => c.name.toLowerCase() === catName.toLowerCase());
-                    if (!cat && catName) { cat = { id: Date.now() + Math.random(), name: catName }; categories.push(cat); }
+                    if (!cat && catName) { cat = { id: Date.now() + Math.floor(Math.random() * 1000), name: catName }; categories.push(cat); }
                     categoryId = cat ? cat.id : null;
                 }
-                items.push({ id: Date.now() + Math.random(), name, code: code || '', brand: brandIndex !== -1 ? values[brandIndex] : '', categoryId, price: parseFloat(values[priceIndex]) || 0, cost: parseFloat(values[costIndex]) || 0, stock: parseInt(values[stockIndex]) || 0, mrp: parseFloat(values[mrpIndex]) || 0, image: '' });
+                items.push({ id: Date.now() + addedCount, name, code: code || '', brand: brandIndex !== -1 ? values[brandIndex] : '', categoryId, price: parseFloat(values[priceIndex]) || 0, cost: parseFloat(values[costIndex]) || 0, stock: parseInt(values[stockIndex]) || 0, mrp: parseFloat(values[mrpIndex]) || 0, image: '' });
                 addedCount++;
             }
             DB.set('items', items); DB.set('categories', categories);
@@ -786,7 +786,7 @@
 
         function loadItemPurchaseHistory() { 
             const sel = document.getElementById('purchaseItem'); 
-            const itemId = parseInt(sel.value);
+            const itemId = parseFloat(sel.value);
             const currentCost = parseFloat(sel.options[sel.selectedIndex].getAttribute('data-cost')) || 0;
             const currentBrand = sel.options[sel.selectedIndex].getAttribute('data-brand') || '';
             
@@ -825,7 +825,7 @@
         
         function savePurchase() { 
             const editId = document.getElementById('editPurchaseId').value;
-            const itemId = parseInt(document.getElementById('purchaseItem').value); 
+            const itemId = parseFloat(document.getElementById('purchaseItem').value); 
             const qty = parseInt(document.getElementById('purchaseQty').value); 
             const newCost = parseFloat(document.getElementById('purchaseCost').value); 
             const newBrand = document.getElementById('purchaseBrand').value.trim();
@@ -934,7 +934,7 @@
         }
 
         function saveReturn() {
-            const itemId = parseInt(document.getElementById('returnItem').value);
+            const itemId = parseFloat(document.getElementById('returnItem').value);
             const goodQty = parseInt(document.getElementById('returnGoodQty').value) || 0;
             const damagedQty = parseInt(document.getElementById('returnDamagedQty').value) || 0;
             const expiredQty = parseInt(document.getElementById('returnExpiredQty').value) || 0;
@@ -983,10 +983,17 @@
         function deleteExpense(id) { if(!confirm('Delete?')) return; DB.set('expenses', (DB.get('expenses')||[]).filter(e => e.id !== id)); renderExpenses(); }
 
         // ===== BILLING =====
-        function renderBilling(keepCart = false) {
+        function renderBilling(keepCart = false, custId = null) {
             if(!keepCart) cart = [];
             const tx = DB.get('transactions') || [];
             const recentTx = tx.slice(-5).reverse();
+            
+            let custIdVal = '';
+            let custNameVal = '';
+            if (custId) {
+                const c = (DB.get('customers')||[]).find(x => x.id == custId);
+                if(c) { custIdVal = c.id; custNameVal = c.name; }
+            }
             
             document.getElementById('pageContent').innerHTML = `
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -1002,17 +1009,57 @@
                         </div>
                     </div>
                     <div class="card sticky top-20 h-fit">
-                        <select id="billCust" class="input-field mb-2" onchange="updateCart()"><option value="">Walk-in Customer</option>${(DB.get('customers')||[]).map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}</select>
+                        <div class="relative mb-2">
+                            <div class="flex gap-2">
+                                <input type="text" id="billCustSearch" class="input-field flex-1" placeholder="Search customer name/phone..." oninput="searchBillCustomer()" onblur="setTimeout(() => { document.getElementById('billCustResults').classList.add('hidden'); }, 200)" autocomplete="off" value="${custNameVal}">
+                                <button onclick="openEditSelectedCustomer()" class="btn btn-secondary text-xs px-3">Edit</button>
+                            </div>
+                            <div id="billCustResults" class="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto z-50 hidden"></div>
+                            <input type="hidden" id="billCustId" value="${custIdVal}">
+                        </div>
                         <select id="billPayType" class="input-field mb-3"><option value="cash">Cash</option><option value="credit">Credit</option></select>
                         <h3 class="font-display font-bold mb-2">Cart</h3>
                         <div class="space-y-2 max-h-64 overflow-y-auto mb-3" id="cartDiv"><p class="text-[var(--muted)] text-center py-4 text-sm">Empty</p></div>
                         <div class="flex items-center gap-2 mb-2"><label class="text-xs text-[var(--muted)]">Bill Discount %</label><input type="number" id="billDiscount" class="input-field w-20 text-center" value="0" oninput="updateCart()"></div>
+                        <input type="text" id="billQuote" class="input-field mb-3" placeholder="Wishes/Quote (e.g. Visit Again)">
                         <div class="border-t border-[var(--border)] pt-3 mb-3" id="totalsSection"></div>
                         <button onclick="processBill()" class="btn btn-primary w-full font-bold">SAVE BILL</button>
                     </div>
                 </div>`;
             filterBillItems();
             updateCart();
+        }
+
+        function searchBillCustomer() {
+            const q = document.getElementById('billCustSearch').value.toLowerCase();
+            const resultsDiv = document.getElementById('billCustResults');
+            document.getElementById('billCustId').value = ''; 
+            updateCart();
+            
+            if(!q) { resultsDiv.classList.add('hidden'); return; }
+            const customers = DB.get('customers') || [];
+            const filtered = customers.filter(c => c.name.toLowerCase().includes(q) || (c.phone && c.phone.includes(q)));
+            if(filtered.length > 0) {
+                resultsDiv.innerHTML = filtered.map(c => `<div onclick="selectBillCustomer(${c.id})" class="p-2 hover:bg-gray-100 cursor-pointer text-sm">${c.name} (${c.phone})</div>`).join('');
+                resultsDiv.classList.remove('hidden');
+            } else {
+                resultsDiv.innerHTML = `<div class="p-2 text-sm text-gray-500">No match. <button onclick="openCustomerModal()" class="text-[var(--accent)] font-medium">Add New</button></div>`;
+                resultsDiv.classList.remove('hidden');
+            }
+        }
+
+        function selectBillCustomer(id) {
+            document.getElementById('billCustId').value = id;
+            const c = (DB.get('customers')||[]).find(x => x.id === id);
+            document.getElementById('billCustSearch').value = c.name;
+            document.getElementById('billCustResults').classList.add('hidden');
+            updateCart();
+        }
+
+        function openEditSelectedCustomer() {
+            const id = parseFloat(document.getElementById('billCustId').value);
+            if(!id) return alert("Search and select a customer first");
+            openCustomerModal(id);
         }
 
         function handleScanKey(e) { if (e.key === 'Enter') { e.preventDefault(); const val = document.getElementById('scanInput').value.trim(); if(!val) return; const items = DB.get('items') || []; const found = items.find(i => i.code && i.code.toLowerCase() === val.toLowerCase()); if (found) { addToCart(found.id); playBeep(); document.getElementById('scanInput').value = ''; } else { filterBillItems(); } } }
@@ -1028,9 +1075,16 @@
                 tempScanner.scanFile(file, true).then(decodedText => { onScanSuccess(decodedText); tempScanner.clear(); }).catch(err => { alert("Could not read barcode from image."); tempScanner.clear(); });
                 e.target.value = "";
             };
+            
+            try { 
+                if (html5QrcodeScanner) html5QrcodeScanner.clear(); 
+            } catch(e) {}
+            
             html5QrcodeScanner = new Html5Qrcode("reader");
             const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-            html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess, (errorMessage) => {}).catch(err => { alert("Camera Error. Use 'Upload Image'."); });
+            html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess, (errorMessage) => {}).catch(err => { 
+                console.error(err);
+            });
         }
 
         function onScanSuccess(decodedText) {
@@ -1041,11 +1095,21 @@
         }
 
         function stopScanner() { 
-            if(html5QrcodeScanner) { 
-                if(html5QrcodeScanner.getState() === 2) {
-                    html5QrcodeScanner.stop().then(() => { html5QrcodeScanner.clear(); document.getElementById('scannerModal').classList.remove('active'); }).catch(err => { document.getElementById('scannerModal').classList.remove('active'); });
-                } else { document.getElementById('scannerModal').classList.remove('active'); }
-            } else { document.getElementById('scannerModal').classList.remove('active'); }
+            try {
+                if(html5QrcodeScanner && html5QrcodeScanner.getState() === 2) { // 2 means SCANNING
+                    html5QrcodeScanner.stop().then(() => { 
+                        html5QrcodeScanner.clear(); 
+                        document.getElementById('scannerModal').classList.remove('active'); 
+                    }).catch(err => { 
+                        document.getElementById('scannerModal').classList.remove('active'); 
+                    });
+                } else {
+                    if (html5QrcodeScanner) html5QrcodeScanner.clear();
+                    document.getElementById('scannerModal').classList.remove('active'); 
+                }
+            } catch(e) {
+                document.getElementById('scannerModal').classList.remove('active'); 
+            }
         }
 
         function filterBillItems() { const q = (document.getElementById('scanInput')?.value || '').toLowerCase(); const items = (DB.get('items')||[]).filter(i => i.stock>0 && (i.name.toLowerCase().includes(q) || (i.code && i.code.toLowerCase().includes(q)))); document.getElementById('billItems').innerHTML = items.map(i => `<div class="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden cursor-pointer active:scale-95 transition-all" onclick="addToCart(${i.id})">${i.image ? `<img src="${i.image}" class="bill-item-img">` : '<div class="bill-item-img flex items-center justify-center text-[var(--muted)] text-xs">No Img</div>'}<div class="p-2"><p class="text-xs font-medium truncate">${i.name}</p><div class="flex justify-between items-center mt-1"><p class="text-[var(--accent)] font-bold text-sm">${CURRENCY}${i.price}</p><span class="text-[var(--muted)] text-xs">${i.stock}</span></div></div></div>`).join(''); }
@@ -1073,12 +1137,12 @@
             DB.set('items', items);
             DB.set('transactions', tx.filter(t => t.id !== txId));
             cart = transaction.items.map(i => ({...i, stock: items.find(it => it.id === i.id)?.stock || 0, defaultPrice: i.defaultPrice || i.price, sellPrice: i.price, mrp: i.mrp || i.price, brand: i.brand || '' }));
-            renderBilling(true);
+            renderBilling(true, transaction.customerId);
         }
 
         function updateCart() { 
             const discountPercent = parseFloat(document.getElementById('billDiscount').value) || 0;
-            const custId = document.getElementById('billCust').value;
+            const custId = document.getElementById('billCustId').value;
             const customers = DB.get('customers') || [];
             const customer = customers.find(c => c.id == custId);
             
@@ -1105,7 +1169,7 @@
 
             const billDiscountAmount = totalSellingValue * (discountPercent / 100);
             const totalDiscount = itemDiscountTotal + billDiscountAmount;
-            const billTotal = totalDefaultPrice - totalDiscount;
+            const billValue = totalDefaultPrice - totalDiscount;
 
             let totalsHtml = `<div class="flex justify-between text-sm text-[var(--muted)] mb-1"><span>Subtotal</span><span>${CURRENCY}${totalDefaultPrice.toFixed(0)}</span></div>`;
             
@@ -1113,11 +1177,11 @@
                 totalsHtml += `<div class="flex justify-between text-sm text-[var(--danger)] mb-2"><span>Total Discount</span><span>-${CURRENCY}${totalDiscount.toFixed(0)}</span></div>`;
             }
             
-            totalsHtml += `<div class="flex justify-between font-display font-bold text-lg mb-1"><span>Bill Total</span><span class="text-[var(--accent)]">${CURRENCY}${billTotal.toFixed(0)}</span></div>`;
+            totalsHtml += `<div class="flex justify-between font-display font-bold text-lg mb-1"><span>Bill Value</span><span class="text-[var(--accent)]">${CURRENCY}${billValue.toFixed(0)}</span></div>`;
 
             if(customer && customer.balance > 0) {
-                const grandTotal = billTotal + customer.balance;
-                totalsHtml += `<div class="border-t border-dashed border-[var(--border)] mt-2 pt-2"><div class="flex justify-between text-sm text-[var(--danger)]"><span>Prev Balance</span><span>${CURRENCY}${customer.balance.toFixed(0)}</span></div><div class="flex justify-between font-display font-bold text-lg text-[var(--fg)] mt-1"><span>Grand Total</span><span>${CURRENCY}${grandTotal.toFixed(0)}</span></div></div>`;
+                const grandTotal = billValue + customer.balance;
+                totalsHtml += `<div class="border-t border-dashed border-[var(--border)] mt-2 pt-2"><div class="flex justify-between text-sm text-[var(--danger)]"><span>Previous Balance</span><span>${CURRENCY}${customer.balance.toFixed(0)}</span></div><div class="flex justify-between font-display font-bold text-lg text-[var(--fg)] mt-1"><span>Grand Total</span><span>${CURRENCY}${grandTotal.toFixed(0)}</span></div></div>`;
             }
             document.getElementById('totalsSection').innerHTML = totalsHtml;
         }
@@ -1129,11 +1193,12 @@
         function processBill() {
             if(cart.length===0) return;
             let settings = DB.get('settings');
-            const custId = parseInt(document.getElementById('billCust').value) || null;
+            const custId = parseFloat(document.getElementById('billCustId').value) || null;
             const payType = document.getElementById('billPayType').value;
             const custList = DB.get('customers') || [];
             const customer = custId ? custList.find(c=>c.id===custId) : null;
             const custName = customer ? customer.name : 'Walk-in Customer';
+            const quote = document.getElementById('billQuote').value.trim();
             
             if(payType === 'credit' && !custId) return alert("Select a customer for Credit");
 
@@ -1156,6 +1221,8 @@
             const billDiscount = totalSellingValue * (discountPercent / 100);
             const totalDiscount = itemDiscount + billDiscount;
             const total = totalDefaultPrice - totalDiscount; 
+            const prevBalance = customer ? (customer.balance || 0) : 0;
+            const grandTotal = total + prevBalance;
             
             const profit = cart.reduce((a,i)=>a+((i.sellPrice-i.cost)*i.qty),0) - billDiscount; 
 
@@ -1180,7 +1247,12 @@
                 discountPercent,
                 billDiscount,
                 totalDiscount,
-                total, profit, type: payType 
+                total, 
+                prevBalance,
+                grandTotal,
+                quote,
+                profit, 
+                type: payType 
             };
             txx.push(newTx);
             
@@ -1208,7 +1280,15 @@
             
             let billText = `*${settings.shopName}*\nBill #: ${tx.id}\nDate: ${new Date(tx.date).toLocaleString()}\nCustomer: ${tx.customerName}\n-------------------\n`;
             tx.items.forEach(i => { billText += `${i.name} (${i.brand || 'N/A'})\n  ${i.qty} x ${i.price} = ${CURRENCY}${(i.price*i.qty).toFixed(0)}\n`; });
-            billText += `-------------------\nSubtotal: ${CURRENCY}${tx.totalDefaultPrice.toFixed(0)}\nDiscount: -${CURRENCY}${tx.totalDiscount.toFixed(0)}\n*Total: ${CURRENCY}${tx.total.toFixed(0)}*\n\nThank you!`;
+            billText += `-------------------\nSubtotal: ${CURRENCY}${tx.totalDefaultPrice.toFixed(0)}\n`;
+            if(tx.totalDiscount > 0) billText += `Discount: -${CURRENCY}${tx.totalDiscount.toFixed(0)}\n`;
+            billText += `*Bill Total: ${CURRENCY}${tx.total.toFixed(0)}*\n`;
+            if(tx.prevBalance > 0) {
+                billText += `Prev Balance: ${CURRENCY}${tx.prevBalance.toFixed(0)}\n`;
+                billText += `*Grand Total: ${CURRENCY}${tx.grandTotal.toFixed(0)}*\n`;
+            }
+            if(tx.quote) billText += `\n${tx.quote}\n`;
+            billText += `\nThank you!`;
 
             const waLink = `https://wa.me/?text=${encodeURIComponent(billText)}`;
 
@@ -1255,10 +1335,19 @@
                             <div style="border-top: 2px solid #000; margin-top: 10px; padding-top: 10px;">
                                 <div style="display: flex; justify-content: space-between; font-size: 12px;"><span>Subtotal:</span><span>${CURRENCY}${(tx.totalDefaultPrice || tx.total).toFixed(0)}</span></div>
                                 ${tx.totalDiscount > 0 ? `<div style="display: flex; justify-content: space-between; font-size: 12px; color: #dc3545;"><span>Total Discount:</span><span>-${CURRENCY}${(tx.totalDiscount || 0).toFixed(0)}</span></div>` : ''}
-                                <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-top: 6px; border-top: 1px solid #000; padding-top: 6px;"><span>TOTAL:</span><span>${CURRENCY}${tx.total.toFixed(0)}</span></div>
+                                <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-top: 6px; border-top: 1px solid #000; padding-top: 6px;"><span>BILL VALUE:</span><span>${CURRENCY}${tx.total.toFixed(0)}</span></div>
+                                ${tx.prevBalance > 0 ? `
+                                <div style="margin-top: 10px; border-top: 1px dashed #000; padding-top: 10px;">
+                                    <div style="display: flex; justify-content: space-between; font-size: 12px;"><span>Prev Balance:</span><span>${CURRENCY}${tx.prevBalance.toFixed(0)}</span></div>
+                                    <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-top: 4px;"><span>GRAND TOTAL:</span><span>${CURRENCY}${tx.grandTotal.toFixed(0)}</span></div>
+                                </div>
+                                ` : ''}
                             </div>
                             <div style="text-align: center; margin-top: 20px;"><div id="qrcode"></div><p style="font-size: 10px; margin-top: 6px; color: #555;">Scan to Pay via UPI</p></div>
-                            <div style="text-align: center; margin-top: 16px; font-size: 11px; color: #888;"><p>Thank you for shopping!</p></div>
+                            <div style="text-align: center; margin-top: 16px; font-size: 11px; color: #888;">
+                                <p>Thank you for shopping!</p>
+                                ${tx.quote ? `<p style="margin-top:5px; font-style:italic; font-weight:bold;">${tx.quote}</p>` : ''}
+                            </div>
                         </div>
                     </div>
                 </div>`;
@@ -1309,7 +1398,6 @@
             const priceHistory = DB.get('priceHistory') || [];
             const periodPriceChanges = priceHistory.filter(p => { const d = new Date(p.date); return d >= from && d <= to; });
 
-            // Returns & Losses Calculations
             const returnsLosses = DB.get('returnsLosses') || [];
             const periodReturns = returnsLosses.filter(r => { 
                 const d = new Date(r.date); 
@@ -1323,7 +1411,7 @@
                 totExpired += r.expiredQty;
                 const item = allItems.find(i => i.id === r.itemId);
                 const cost = item ? item.cost : 0;
-                lossValue += (r.damagedQty + r.expiredQty) * cost; // Damaged + Expired as losses
+                lossValue += (r.damagedQty + r.expiredQty) * cost;
             });
 
             const monthlyStats = {};
@@ -1435,35 +1523,64 @@
                                 <p class="text-xs text-[var(--muted)]">${c.address || ''}</p>
                                 <p class="text-sm mt-1">Bal: <span class="font-bold ${c.balance > 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'}">${CURRENCY}${(c.balance||0).toFixed(0)}</span></p>
                             </div>
-                            <button onclick="deleteCustomer(${c.id})" class="text-[var(--danger)] text-sm">Del</button>
+                            <div class="flex gap-2">
+                                <button onclick="openCustomerModal(${c.id})" class="btn btn-secondary text-xs py-1 px-2">Edit</button>
+                                <button onclick="deleteCustomer(${c.id})" class="text-[var(--danger)] text-sm">Del</button>
+                            </div>
                         </div>
                     `).join('')}
                 </div>`; 
         }
 
-        function openCustomerModal() { 
+        function openCustomerModal(id = null) { 
+            const c = id ? (DB.get('customers')||[]).find(x => x.id === id) : null;
             openModal(`
-                <h3 class="font-display font-bold mb-4">Add Customer</h3>
+                <h3 class="font-display font-bold mb-4">${c ? 'Edit' : 'Add'} Customer</h3>
                 <div class="space-y-3">
-                    <input type="text" id="cName" class="input-field" placeholder="Name">
-                    <input type="tel" id="cPhone" class="input-field" placeholder="Phone">
-                    <input type="text" id="cAddress" class="input-field" placeholder="Address">
-                    <input type="number" id="cOpeningBalance" class="input-field" placeholder="Opening Balance (Due)">
+                    <input type="hidden" id="editCustId" value="${c ? c.id : ''}">
+                    <input type="text" id="cName" class="input-field" placeholder="Name" value="${c ? c.name : ''}">
+                    <input type="tel" id="cPhone" class="input-field" placeholder="Phone" value="${c ? c.phone : ''}">
+                    <input type="text" id="cAddress" class="input-field" placeholder="Address" value="${c ? c.address : ''}">
+                    ${!c ? `<input type="number" id="cOpeningBalance" class="input-field" placeholder="Opening Balance (Due)">` : ''}
                     <button onclick="saveCustomer()" class="btn btn-primary w-full">Save</button>
                 </div>`); 
         }
         
         function saveCustomer() { 
+            const editId = document.getElementById('editCustId').value;
             const name = document.getElementById('cName').value.trim(); 
             const phone = document.getElementById('cPhone').value.trim(); 
             const address = document.getElementById('cAddress').value.trim(); 
-            const openingBalance = parseFloat(document.getElementById('cOpeningBalance').value) || 0;
             if(!name) return; 
-            const cust = DB.get('customers') || []; 
-            cust.push({id: Date.now(), name, phone, address, balance: openingBalance}); 
+            let cust = DB.get('customers') || [];
+            if(editId) {
+                const idx = cust.findIndex(c => c.id == editId);
+                if(idx !== -1) {
+                    cust[idx].name = name;
+                    cust[idx].phone = phone;
+                    cust[idx].address = address;
+                }
+            } else {
+                const openingBalance = parseFloat(document.getElementById('cOpeningBalance').value) || 0;
+                const newId = Date.now();
+                cust.push({id: newId, name, phone, address, balance: openingBalance}); 
+                
+                const billCustSearch = document.getElementById('billCustSearch');
+                if (billCustSearch) {
+                    document.getElementById('billCustId').value = newId;
+                    billCustSearch.value = name;
+                    document.getElementById('billCustResults').classList.add('hidden');
+                }
+            }
             DB.set('customers', cust); 
             closeModal(); 
-            renderCustomers(); 
+            
+            const billCustSearch = document.getElementById('billCustSearch');
+            if (billCustSearch) {
+                updateCart();
+            } else {
+                renderCustomers();
+            }
         }
         function deleteCustomer(id) { if(!confirm('Move to trash?')) return; let cust = DB.get('customers') || []; const c = cust.find(x=>x.id===id); if(c){ moveToTrash('customer', c); DB.set('customers', cust.filter(x=>x.id!==id)); renderCustomers(); } }
 
