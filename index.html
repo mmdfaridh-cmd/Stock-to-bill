@@ -289,6 +289,7 @@
                 { id: 2, name: 'Rice 5kg', code: 'RIC05', categoryId: 2, brand: 'India Gate', price: 450, mrp: 500, cost: 380, stock: 100, image: '' }
             ]);
             if (!DB.get('customers')) DB.set('customers', [{ id: 1, name: 'John Doe', phone: '9876543210', address: '123 Main St', balance: 0 }]);
+            if (!DB.get('suppliers')) DB.set('suppliers', [{ id: 1, name: 'ABC Wholesale', phone: '9123456780', address: 'Industrial Area' }]);
             if (!DB.get('transactions')) DB.set('transactions', []);
             if (!DB.get('ledger')) DB.set('ledger', []);
             if (!DB.get('purchases')) DB.set('purchases', []);
@@ -335,7 +336,7 @@
         // ===== BACKUP SYSTEM =====
         function manualBackup() {
             const data = {};
-            const keysToBackup = ['users', 'settings', 'categories', 'items', 'customers', 'transactions', 'ledger', 'purchases', 'expenses', 'trash', 'stockClosings', 'withdrawals', 'priceHistory', 'returnsLosses'];
+            const keysToBackup = ['users', 'settings', 'categories', 'items', 'customers', 'suppliers', 'transactions', 'ledger', 'purchases', 'expenses', 'trash', 'stockClosings', 'withdrawals', 'priceHistory', 'returnsLosses'];
             
             keysToBackup.forEach(key => {
                 const val = localStorage.getItem(key);
@@ -384,7 +385,7 @@
                     
                     if(!confirm("This will overwrite all current data. Are you sure?")) return;
 
-                    const keysToClear = ['users', 'settings', 'categories', 'items', 'customers', 'transactions', 'ledger', 'purchases', 'expenses', 'trash', 'stockClosings', 'withdrawals', 'priceHistory', 'returnsLosses'];
+                    const keysToClear = ['users', 'settings', 'categories', 'items', 'customers', 'suppliers', 'transactions', 'ledger', 'purchases', 'expenses', 'trash', 'stockClosings', 'withdrawals', 'priceHistory', 'returnsLosses'];
                     keysToClear.forEach(key => localStorage.removeItem(key));
 
                     for (const [key, value] of Object.entries(content.data)) {
@@ -415,6 +416,7 @@
             { id: 'billing', label: 'Billing', icon: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>', roles: ['admin', 'user'] },
             { id: 'items', label: 'Items', icon: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0"/></svg>', roles: ['admin', 'user'] },
             { id: 'purchases', label: 'Purchases', icon: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3zM12 8v8M8 12h8"/></svg>', roles: ['admin', 'user'] },
+            { id: 'suppliers', label: 'Suppliers', icon: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>', roles: ['admin', 'user'] },
             { id: 'returns', label: 'Returns/Losses', icon: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9M3 12l4-4M3 12l4 4"/></svg>', roles: ['admin', 'user'] },
             { id: 'expenses', label: 'Expenses', icon: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>', roles: ['admin'] },
             { id: 'stockclose', label: 'Stock Closing', icon: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>', roles: ['admin'] },
@@ -426,7 +428,7 @@
 
         function setupNavigation() { const nav = document.getElementById('sideNav'); nav.innerHTML = navItems.filter(item => item.roles.includes(currentUser.role)).map(item => `<div class="nav-item" data-page="${item.id}">${item.icon}<span>${item.label}</span></div>`).join(''); document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', () => showPage(n.dataset.page))); }
         function toggleSidebar() { if(window.innerWidth < 768) { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('overlayBg').classList.toggle('active'); } }
-        function showPage(page) { const item = navItems.find(n => n.id === page); if(item && !item.roles.includes(currentUser.role)) { alert('Access Denied'); return; } document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active')); document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active'); document.getElementById('pageTitle').textContent = page.charAt(0).toUpperCase() + page.slice(1); toggleSidebar(); const pages = { dashboard: renderDashboard, items: renderItems, customers: renderCustomers, billing: renderBilling, reports: renderReports, settings: renderSettings, ledger: renderLedger, purchases: renderPurchases, expenses: renderExpenses, stockclose: renderStockClose, returns: renderReturns }; pages[page](); }
+        function showPage(page) { const item = navItems.find(n => n.id === page); if(item && !item.roles.includes(currentUser.role)) { alert('Access Denied'); return; } document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active')); document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active'); document.getElementById('pageTitle').textContent = page.charAt(0).toUpperCase() + page.slice(1); toggleSidebar(); const pages = { dashboard: renderDashboard, items: renderItems, customers: renderCustomers, suppliers: renderSuppliers, billing: renderBilling, reports: renderReports, settings: renderSettings, ledger: renderLedger, purchases: renderPurchases, expenses: renderExpenses, stockclose: renderStockClose, returns: renderReturns }; pages[page](); }
 
         function openModal(html) { document.getElementById('modalContent').innerHTML = html; document.getElementById('modalOverlay').classList.add('active'); }
         function closeModal() { document.getElementById('modalOverlay').classList.remove('active'); }
@@ -705,6 +707,73 @@
             openCategoryModal(); 
         }
 
+        // ===== SUPPLIERS =====
+        function renderSuppliers() {
+            const suppliers = DB.get('suppliers') || [];
+            document.getElementById('pageContent').innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <p class="text-[var(--muted)] text-sm">${suppliers.length} suppliers</p>
+                    <button onclick="openSupplierModal()" class="btn btn-primary text-sm py-2 px-4">Add Supplier</button>
+                </div>
+                <div class="grid md:grid-cols-2 gap-3">
+                    ${suppliers.map(s => `
+                        <div class="card flex justify-between items-center">
+                            <div class="flex-1">
+                                <p class="font-medium">${s.name} <span class="text-[var(--muted)] text-xs">${s.phone || ''}</span></p>
+                                <p class="text-xs text-[var(--muted)]">${s.address || ''}</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="openSupplierModal(${s.id})" class="btn btn-secondary text-xs py-1 px-2">Edit</button>
+                                <button onclick="deleteSupplier(${s.id})" class="text-[var(--danger)] text-sm">Del</button>
+                            </div>
+                        </div>
+                    `).join('') || '<p class="text-center text-[var(--muted)] py-4">No suppliers found</p>'}
+                </div>`;
+        }
+
+        function openSupplierModal(id = null) {
+            const s = id ? (DB.get('suppliers')||[]).find(x => x.id === id) : null;
+            openModal(`
+                <h3 class="font-display font-bold mb-4">${s ? 'Edit' : 'Add'} Supplier</h3>
+                <div class="space-y-3">
+                    <input type="hidden" id="editSupId" value="${s ? s.id : ''}">
+                    <input type="text" id="supName" class="input-field" placeholder="Supplier Name" value="${s ? s.name : ''}">
+                    <input type="tel" id="supPhone" class="input-field" placeholder="Phone Number" value="${s ? s.phone : ''}">
+                    <input type="text" id="supAddress" class="input-field" placeholder="Address" value="${s ? s.address : ''}">
+                    <button onclick="saveSupplier()" class="btn btn-primary w-full">Save</button>
+                </div>`);
+        }
+        
+        function saveSupplier() {
+            const editId = document.getElementById('editSupId').value;
+            const name = document.getElementById('supName').value.trim();
+            const phone = document.getElementById('supPhone').value.trim();
+            const address = document.getElementById('supAddress').value.trim();
+            if(!name) return alert("Supplier name is required");
+            
+            let suppliers = DB.get('suppliers') || [];
+            if(editId) {
+                const idx = suppliers.findIndex(s => s.id == editId);
+                if(idx !== -1) {
+                    suppliers[idx].name = name;
+                    suppliers[idx].phone = phone;
+                    suppliers[idx].address = address;
+                }
+            } else {
+                suppliers.push({ id: Date.now(), name, phone, address });
+            }
+            DB.set('suppliers', suppliers);
+            closeModal();
+            renderSuppliers();
+        }
+
+        function deleteSupplier(id) {
+            if(!confirm('Delete this supplier?')) return;
+            let suppliers = DB.get('suppliers') || [];
+            DB.set('suppliers', suppliers.filter(s => s.id !== id));
+            renderSuppliers();
+        }
+
         // ===== PURCHASES =====
         function renderPurchases() { 
             const purchases = DB.get('purchases') || []; 
@@ -885,7 +954,7 @@
             const itemIdx = items.findIndex(i => Number(i.id) === Number(p.itemId));
             if(itemIdx !== -1) {
                 items[itemIdx].stock -= p.qty;
-                if(items[itemIdx].stock < 0) items[itemIdx].stock = 0; // Prevent negative stock
+                if(items[itemIdx].stock < 0) items[itemIdx].stock = 0; 
                 DB.set('items', items);
             }
 
@@ -1092,32 +1161,45 @@
                 if (e.target.files.length === 0) return;
                 const file = e.target.files[0];
                 
-                const doScan = () => {
-                    try { if (html5QrcodeScanner) html5QrcodeScanner.clear(); } catch(err){}
-                    html5QrcodeScanner = new Html5Qrcode("reader");
-                    html5QrcodeScanner.scanFile(file, true).then(decodedText => { 
-                        onScanSuccess(decodedText); 
-                    }).catch(err => { 
-                        alert("Could not read barcode from image."); 
+                if (html5QrcodeScanner) {
+                    html5QrcodeScanner.stop().then(() => {
+                        try { html5QrcodeScanner.clear(); } catch(err){}
+                        scanFileInModal(file);
+                    }).catch(() => {
+                        try { html5QrcodeScanner.clear(); } catch(err){}
+                        scanFileInModal(file);
                     });
-                    e.target.value = "";
-                };
-
-                if (html5QrcodeScanner && html5QrcodeScanner.getState() === 2) {
-                    html5QrcodeScanner.stop().then(doScan).catch(doScan);
                 } else {
-                    doScan();
+                    scanFileInModal(file);
                 }
+                e.target.value = "";
             };
             
-            try { 
-                if (html5QrcodeScanner) html5QrcodeScanner.clear(); 
-            } catch(e) {}
+            if (html5QrcodeScanner) {
+                try { html5QrcodeScanner.clear(); } catch(e) {}
+                html5QrcodeScanner = null;
+            }
             
             html5QrcodeScanner = new Html5Qrcode("reader");
-            html5QrcodeScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess).catch(err => { 
+            html5QrcodeScanner.start(
+                { facingMode: "environment" }, 
+                { fps: 10, qrbox: { width: 250, height: 250 } }, 
+                onScanSuccess,
+                (errorMessage) => {} 
+            ).catch(err => { 
                 console.error("Camera start error:", err);
-                alert("Camera Error. Use 'Upload Image'.");
+                alert("Camera Error. Please use 'Upload Image' instead or check camera permissions. (Note: Camera requires HTTPS or localhost to work).");
+            });
+        }
+
+        function scanFileInModal(file) {
+            const tempScanner = new Html5Qrcode("reader");
+            tempScanner.scanFile(file, true).then(decodedText => {
+                onScanSuccess(decodedText);
+            }).catch(err => {
+                alert("Could not read barcode from image.");
+            }).then(() => {
+                try { tempScanner.clear(); } catch(e) {}
             });
         }
 
@@ -1134,12 +1216,16 @@
                     if (html5QrcodeScanner.getState() === 2) { 
                         html5QrcodeScanner.stop().then(() => { 
                             html5QrcodeScanner.clear(); 
+                            html5QrcodeScanner = null;
                             document.getElementById('scannerModal').classList.remove('active'); 
                         }).catch(err => { 
+                            try { html5QrcodeScanner.clear(); } catch(e) {}
+                            html5QrcodeScanner = null;
                             document.getElementById('scannerModal').classList.remove('active'); 
                         });
                     } else {
                         html5QrcodeScanner.clear();
+                        html5QrcodeScanner = null;
                         document.getElementById('scannerModal').classList.remove('active'); 
                     }
                 } else {
