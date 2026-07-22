@@ -736,7 +736,7 @@
             if(editId && settings.isStoreClosed) { alert("Store is closed. Reopen store from Stock Closing to edit purchases."); return; }
 
             const items = DB.get('items') || [];
-            const p = editId ? (DB.get('purchases') || []).find(x => x.id === editId) : null;
+            const p = editId ? (DB.get('purchases') || []).find(x => x.id == editId) : null;
             
             openModal(`
                 <h3 class="font-display font-bold mb-4">${p ? 'Edit' : 'Record'} Purchase</h3>
@@ -778,7 +778,7 @@
             
             if (!p) loadItemPurchaseHistory(); 
             else {
-                const item = items.find(i => i.id === p.itemId);
+                const item = items.find(i => i.id == p.itemId);
                 document.getElementById('purchaseBrand').value = p.itemBrand || (item ? item.brand : '');
                 loadItemPurchaseHistory();
             }
@@ -786,7 +786,7 @@
 
         function loadItemPurchaseHistory() { 
             const sel = document.getElementById('purchaseItem'); 
-            const itemId = parseFloat(sel.value);
+            const itemId = Number(sel.value);
             const currentCost = parseFloat(sel.options[sel.selectedIndex].getAttribute('data-cost')) || 0;
             const currentBrand = sel.options[sel.selectedIndex].getAttribute('data-brand') || '';
             
@@ -825,7 +825,7 @@
         
         function savePurchase() { 
             const editId = document.getElementById('editPurchaseId').value;
-            const itemId = parseFloat(document.getElementById('purchaseItem').value); 
+            const itemId = Number(document.getElementById('purchaseItem').value); 
             const qty = parseInt(document.getElementById('purchaseQty').value); 
             const newCost = parseFloat(document.getElementById('purchaseCost').value); 
             const newBrand = document.getElementById('purchaseBrand').value.trim();
@@ -835,7 +835,7 @@
             if(!itemId || !qty || !newCost) return alert('Fill all fields'); 
             
             let items = DB.get('items') || []; 
-            const itemIdx = items.findIndex(i => i.id === itemId);
+            const itemIdx = items.findIndex(i => Number(i.id) === itemId);
             if(itemIdx === -1) return alert('Item not found');
             const itemName = items[itemIdx].name;
             const oldCost = items[itemIdx].cost;
@@ -856,7 +856,7 @@
                 if (pIdx === -1) return alert('Purchase record not found');
                 const oldP = purchases[pIdx];
 
-                const oldItemIdx = items.findIndex(i => i.id === oldP.itemId);
+                const oldItemIdx = items.findIndex(i => Number(i.id) === Number(oldP.itemId));
                 if(oldItemIdx !== -1) items[oldItemIdx].stock -= oldP.qty;
 
                 items[itemIdx].stock += qty;
@@ -934,7 +934,7 @@
         }
 
         function saveReturn() {
-            const itemId = parseFloat(document.getElementById('returnItem').value);
+            const itemId = Number(document.getElementById('returnItem').value);
             const goodQty = parseInt(document.getElementById('returnGoodQty').value) || 0;
             const damagedQty = parseInt(document.getElementById('returnDamagedQty').value) || 0;
             const expiredQty = parseInt(document.getElementById('returnExpiredQty').value) || 0;
@@ -946,7 +946,7 @@
             if(totalReturn <= 0) return alert('Enter at least one quantity');
 
             let items = DB.get('items') || [];
-            const idx = items.findIndex(i => i.id === itemId);
+            const idx = items.findIndex(i => Number(i.id) === itemId);
             if(idx === -1) return alert('Item not found');
             
             if(items[idx].stock < totalReturn) return alert(`Insufficient stock. Available: ${items[idx].stock}`);
@@ -1040,7 +1040,7 @@
             const customers = DB.get('customers') || [];
             const filtered = customers.filter(c => c.name.toLowerCase().includes(q) || (c.phone && c.phone.includes(q)));
             if(filtered.length > 0) {
-                resultsDiv.innerHTML = filtered.map(c => `<div onclick="selectBillCustomer(${c.id})" class="p-2 hover:bg-gray-100 cursor-pointer text-sm">${c.name} (${c.phone})</div>`).join('');
+                resultsDiv.innerHTML = filtered.map(c => `<div onmousedown="selectBillCustomer(${c.id})" class="p-2 hover:bg-gray-100 cursor-pointer text-sm">${c.name} (${c.phone})</div>`).join('');
                 resultsDiv.classList.remove('hidden');
             } else {
                 resultsDiv.innerHTML = `<div class="p-2 text-sm text-gray-500">No match. <button onclick="openCustomerModal()" class="text-[var(--accent)] font-medium">Add New</button></div>`;
@@ -1051,7 +1051,7 @@
         function selectBillCustomer(id) {
             document.getElementById('billCustId').value = id;
             const c = (DB.get('customers')||[]).find(x => x.id === id);
-            document.getElementById('billCustSearch').value = c.name;
+            if(c) document.getElementById('billCustSearch').value = c.name;
             document.getElementById('billCustResults').classList.add('hidden');
             updateCart();
         }
@@ -1067,23 +1067,39 @@
         
         function openCameraScanner() { 
             document.getElementById('scannerModal').classList.add('active'); 
+            
             const fileInput = document.getElementById('qr-input-file');
             fileInput.onchange = (e) => {
                 if (e.target.files.length === 0) return;
                 const file = e.target.files[0];
-                const tempScanner = new Html5Qrcode("reader");
-                tempScanner.scanFile(file, true).then(decodedText => { onScanSuccess(decodedText); tempScanner.clear(); }).catch(err => { alert("Could not read barcode from image."); tempScanner.clear(); });
+                if (html5QrcodeScanner) {
+                    html5QrcodeScanner.scanFile(file, true).then(decodedText => { 
+                        onScanSuccess(decodedText); 
+                    }).catch(err => { 
+                        alert("Could not read barcode from image."); 
+                    }).finally(() => {
+                        if (html5QrcodeScanner) html5QrcodeScanner.clear();
+                    });
+                } else {
+                    const tempScanner = new Html5Qrcode("reader");
+                    tempScanner.scanFile(file, true).then(decodedText => { 
+                        onScanSuccess(decodedText); 
+                    }).catch(err => { 
+                        alert("Could not read barcode from image."); 
+                    }).then(() => {
+                        tempScanner.clear();
+                    });
+                }
                 e.target.value = "";
             };
             
-            try { 
-                if (html5QrcodeScanner) html5QrcodeScanner.clear(); 
-            } catch(e) {}
+            if (html5QrcodeScanner) {
+                try { html5QrcodeScanner.clear(); } catch(e) {}
+            }
             
             html5QrcodeScanner = new Html5Qrcode("reader");
-            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-            html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess, (errorMessage) => {}).catch(err => { 
-                console.error(err);
+            html5QrcodeScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess).catch(err => { 
+                console.error("Camera start error:", err);
             });
         }
 
@@ -1095,20 +1111,14 @@
         }
 
         function stopScanner() { 
-            try {
-                if(html5QrcodeScanner && html5QrcodeScanner.getState() === 2) { // 2 means SCANNING
-                    html5QrcodeScanner.stop().then(() => { 
-                        html5QrcodeScanner.clear(); 
-                        document.getElementById('scannerModal').classList.remove('active'); 
-                    }).catch(err => { 
-                        document.getElementById('scannerModal').classList.remove('active'); 
-                    });
-                } else {
-                    if (html5QrcodeScanner) html5QrcodeScanner.clear();
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.stop().then(() => { 
+                    html5QrcodeScanner.clear(); 
+                }).catch(err => {}).finally(() => {
                     document.getElementById('scannerModal').classList.remove('active'); 
-                }
-            } catch(e) {
-                document.getElementById('scannerModal').classList.remove('active'); 
+                });
+            } else {
+                document.getElementById('scannerModal').classList.remove('active');
             }
         }
 
@@ -1565,11 +1575,11 @@
                 const newId = Date.now();
                 cust.push({id: newId, name, phone, address, balance: openingBalance}); 
                 
+                // Auto-select in billing if billing is open
                 const billCustSearch = document.getElementById('billCustSearch');
                 if (billCustSearch) {
                     document.getElementById('billCustId').value = newId;
                     billCustSearch.value = name;
-                    document.getElementById('billCustResults').classList.add('hidden');
                 }
             }
             DB.set('customers', cust); 
