@@ -724,6 +724,7 @@
                                 <div class="flex items-center gap-2">
                                     <p class="font-display font-bold">${CURRENCY}${p.totalCost.toFixed(0)}</p>
                                     <button onclick="openPurchaseModal(${p.id})" class="btn btn-success text-xs py-1 px-2">Edit</button>
+                                    <button onclick="deletePurchase(${p.id})" class="btn btn-danger text-xs py-1 px-2">Del</button>
                                 </div>
                             </div>
                         `).join('') || '<p class="text-center text-[var(--muted)] py-4">No purchases</p>'}
@@ -872,6 +873,24 @@
             DB.set('purchases', purchases); 
             closeModal(); 
             renderPurchases(); 
+        }
+
+        function deletePurchase(id) {
+            if(!confirm('Delete this purchase record? Stock will be reduced automatically.')) return;
+            let purchases = DB.get('purchases') || [];
+            const p = purchases.find(x => x.id == id);
+            if(!p) return alert('Purchase not found');
+
+            let items = DB.get('items') || [];
+            const itemIdx = items.findIndex(i => Number(i.id) === Number(p.itemId));
+            if(itemIdx !== -1) {
+                items[itemIdx].stock -= p.qty;
+                if(items[itemIdx].stock < 0) items[itemIdx].stock = 0; // Prevent negative stock
+                DB.set('items', items);
+            }
+
+            DB.set('purchases', purchases.filter(x => x.id != id));
+            renderPurchases();
         }
 
         // ===== RETURNS & LOSSES =====
@@ -1072,34 +1091,33 @@
             fileInput.onchange = (e) => {
                 if (e.target.files.length === 0) return;
                 const file = e.target.files[0];
-                if (html5QrcodeScanner) {
+                
+                const doScan = () => {
+                    try { if (html5QrcodeScanner) html5QrcodeScanner.clear(); } catch(err){}
+                    html5QrcodeScanner = new Html5Qrcode("reader");
                     html5QrcodeScanner.scanFile(file, true).then(decodedText => { 
                         onScanSuccess(decodedText); 
                     }).catch(err => { 
                         alert("Could not read barcode from image."); 
-                    }).finally(() => {
-                        if (html5QrcodeScanner) html5QrcodeScanner.clear();
                     });
+                    e.target.value = "";
+                };
+
+                if (html5QrcodeScanner && html5QrcodeScanner.getState() === 2) {
+                    html5QrcodeScanner.stop().then(doScan).catch(doScan);
                 } else {
-                    const tempScanner = new Html5Qrcode("reader");
-                    tempScanner.scanFile(file, true).then(decodedText => { 
-                        onScanSuccess(decodedText); 
-                    }).catch(err => { 
-                        alert("Could not read barcode from image."); 
-                    }).then(() => {
-                        tempScanner.clear();
-                    });
+                    doScan();
                 }
-                e.target.value = "";
             };
             
-            if (html5QrcodeScanner) {
-                try { html5QrcodeScanner.clear(); } catch(e) {}
-            }
+            try { 
+                if (html5QrcodeScanner) html5QrcodeScanner.clear(); 
+            } catch(e) {}
             
             html5QrcodeScanner = new Html5Qrcode("reader");
             html5QrcodeScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess).catch(err => { 
                 console.error("Camera start error:", err);
+                alert("Camera Error. Use 'Upload Image'.");
             });
         }
 
@@ -1111,13 +1129,23 @@
         }
 
         function stopScanner() { 
-            if (html5QrcodeScanner) {
-                html5QrcodeScanner.stop().then(() => { 
-                    html5QrcodeScanner.clear(); 
-                }).catch(err => {}).finally(() => {
-                    document.getElementById('scannerModal').classList.remove('active'); 
-                });
-            } else {
+            try {
+                if (html5QrcodeScanner) {
+                    if (html5QrcodeScanner.getState() === 2) { 
+                        html5QrcodeScanner.stop().then(() => { 
+                            html5QrcodeScanner.clear(); 
+                            document.getElementById('scannerModal').classList.remove('active'); 
+                        }).catch(err => { 
+                            document.getElementById('scannerModal').classList.remove('active'); 
+                        });
+                    } else {
+                        html5QrcodeScanner.clear();
+                        document.getElementById('scannerModal').classList.remove('active'); 
+                    }
+                } else {
+                    document.getElementById('scannerModal').classList.remove('active');
+                }
+            } catch(e) {
                 document.getElementById('scannerModal').classList.remove('active');
             }
         }
@@ -1575,7 +1603,6 @@
                 const newId = Date.now();
                 cust.push({id: newId, name, phone, address, balance: openingBalance}); 
                 
-                // Auto-select in billing if billing is open
                 const billCustSearch = document.getElementById('billCustSearch');
                 if (billCustSearch) {
                     document.getElementById('billCustId').value = newId;
