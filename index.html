@@ -265,6 +265,26 @@
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         function playBeep() { try { const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); o.frequency.value = 1200; o.type = 'square'; g.gain.setValueAtTime(0.1, audioCtx.currentTime); o.start(); o.stop(audioCtx.currentTime + 0.1); } catch(e) {} }
 
+        function processImage(file, callback) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const maxW = 400, maxH = 400;
+                    let w = img.width, h = img.height;
+                    if(w > h) { if(w > maxW) { h *= maxW / w; w = maxW; } }
+                    else { if(h > maxH) { w *= maxH / h; h = maxH; } }
+                    canvas.width = w; canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+                    callback(canvas.toDataURL('image/jpeg', 0.7));
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
         function initDB() {
             let users = DB.get('users');
             if (!users || users.length === 0) {
@@ -276,10 +296,11 @@
 
             let settings = DB.get('settings');
             if (!settings) {
-                DB.set('settings', { shopName: 'ShopEase', address: 'Main Street', phone: '555-123-4567', upiId: 'example@upi', shopImage: '', openingCash: 0, nextBillId: 1, isStoreClosed: false });
+                DB.set('settings', { shopName: 'ShopEase', address: 'Main Street', phone: '555-123-4567', upiId: 'example@upi', shopImage: '', openingCash: 0, nextBillId: 1, isStoreClosed: false, defaultQuote: 'Thank you! Visit Again.' });
             } else {
                 if (settings.nextBillId === undefined) settings.nextBillId = 1;
                 if (settings.isStoreClosed === undefined) settings.isStoreClosed = false;
+                if (settings.defaultQuote === undefined) settings.defaultQuote = 'Thank you! Visit Again.';
                 DB.set('settings', settings);
             }
 
@@ -456,6 +477,7 @@
             const todayTotalSales = todayTx.reduce((a, b) => a + b.total, 0);
             const todayCashSales = todayTx.filter(t => t.type === 'cash').reduce((a, b) => a + b.total, 0);
             const todayCreditSales = todayTx.filter(t => t.type === 'credit').reduce((a, b) => a + b.total, 0);
+            const todayUpiSales = todayTx.filter(t => t.type === 'upi').reduce((a, b) => a + b.total, 0);
             const todayGrossProfit = todayTx.reduce((a, b) => a + b.profit, 0);
             const todayExpenses = expenses.filter(e => new Date(e.date).toDateString() === today).reduce((a, e) => a + e.amount, 0);
             const todayReceived = ledger.filter(l => l.type === 'payment' && new Date(l.date).toDateString() === today).reduce((a, l) => a + l.amount, 0);
@@ -471,7 +493,7 @@
 
             const flowItems = [];
             if(openingCash > 0) flowItems.push({ time: new Date(new Date().setHours(0,0,0,0)), desc: `Opening Cash`, amount: openingCash, type: 'open' });
-            todayTx.filter(t => t.type === 'cash').forEach(t => { flowItems.push({ time: new Date(t.date), desc: `Sale #${t.id}`, amount: t.total, type: 'in' }); });
+            todayTx.filter(t => t.type === 'cash' || t.type === 'upi').forEach(t => { flowItems.push({ time: new Date(t.date), desc: `Sale #${t.id} (${t.type.toUpperCase()})`, amount: t.total, type: 'in' }); });
             ledger.filter(l => l.type === 'payment' && new Date(l.date).toDateString() === today).forEach(l => { const cust = (DB.get('customers') || []).find(c => c.id === l.customerId); flowItems.push({ time: new Date(l.date), desc: `Cash Paid (${cust?.name || 'N/A'})`, amount: l.amount, type: 'in' }); });
             expenses.filter(e => new Date(e.date).toDateString() === today).forEach(e => { flowItems.push({ time: new Date(e.date), desc: `Expense: ${e.description}`, amount: e.amount, type: 'out' }); });
             purchases.filter(p => new Date(p.date).toDateString() === today && p.payType === 'cash').forEach(p => { flowItems.push({ time: new Date(p.date), desc: `Purchase: ${p.itemName}`, amount: p.totalCost, type: 'out' }); });
@@ -482,7 +504,7 @@
 
             document.getElementById('pageContent').innerHTML = `
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                    <div class="card"><p class="text-[var(--muted)] text-xs mb-1">Total Sales</p><p class="font-display text-2xl font-bold text-[var(--accent)]">${CURRENCY}${todayTotalSales.toFixed(0)}</p><p class="text-[8px] text-[var(--muted)] mt-1">Cash: ${CURRENCY}${todayCashSales.toFixed(0)} | Credit: ${CURRENCY}${todayCreditSales.toFixed(0)}</p></div>
+                    <div class="card"><p class="text-[var(--muted)] text-xs mb-1">Total Sales</p><p class="font-display text-2xl font-bold text-[var(--accent)]">${CURRENCY}${todayTotalSales.toFixed(0)}</p><p class="text-[8px] text-[var(--muted)] mt-1">Cash: ${CURRENCY}${todayCashSales.toFixed(0)} | UPI: ${CURRENCY}${todayUpiSales.toFixed(0)} | Credit: ${CURRENCY}${todayCreditSales.toFixed(0)}</p></div>
                     <div class="card"><p class="text-[var(--muted)] text-xs mb-1">Net Profit</p><p class="font-display text-2xl font-bold ${todayNetProfit >= 0 ? '' : 'text-[var(--danger)]'}">${CURRENCY}${todayNetProfit.toFixed(0)}</p><p class="text-[8px] text-[var(--muted)]">Gross ${CURRENCY}${todayGrossProfit.toFixed(0)} - Exp ${CURRENCY}${todayExpenses.toFixed(0)}</p></div>
                     <div class="card"><p class="text-[var(--muted)] text-xs mb-1">Expenses & Purchases</p><p class="font-display text-2xl font-bold text-[var(--danger)]">${CURRENCY}${(todayExpenses + todayCashPurchases + todaySupplierPayments).toFixed(0)}</p><p class="text-[8px] text-[var(--muted)]">OpEx: ${CURRENCY}${todayExpenses.toFixed(0)} | Stock: ${CURRENCY}${(todayCashPurchases + todaySupplierPayments).toFixed(0)}</p></div>
                     <div class="card border-[var(--accent)]"><p class="text-[var(--muted)] text-xs mb-1">Closing Cash</p><p class="font-display text-2xl font-bold">${closingCash >= 0 ? '' : '-'}${CURRENCY}${Math.abs(closingCash).toFixed(0)}</p><p class="text-[8px] text-[var(--muted)]">Open: ${CURRENCY}${openingCash.toFixed(0)} | Net: ${todayNetCashFlow >= 0 ? '+' : '-'}${CURRENCY}${Math.abs(todayNetCashFlow).toFixed(0)}</p></div>
@@ -652,7 +674,14 @@
             window.tmpImg = item?.image || '';
         }
         
-        function previewImg(input) { if(input.files[0]) { const reader = new FileReader(); reader.onload = (e) => { window.tmpImg = e.target.result; document.getElementById('imgPreview').innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover">`; }; reader.readAsDataURL(input.files[0]); } }
+        function previewImg(input) { 
+            if(input.files[0]) { 
+                processImage(input.files[0], (dataUrl) => {
+                    window.tmpImg = dataUrl; 
+                    document.getElementById('imgPreview').innerHTML = `<img src="${dataUrl}" class="w-full h-full object-cover">`; 
+                });
+            } 
+        }
         function saveItem(id) { const name = document.getElementById('itemName').value.trim(); const code = document.getElementById('itemCode').value.trim(); const brand = document.getElementById('itemBrand').value.trim(); const categoryId = parseInt(document.getElementById('itemCat').value); const cost = parseFloat(document.getElementById('itemCost').value) || 0; const price = parseFloat(document.getElementById('itemPrice').value) || 0; const mrp = parseFloat(document.getElementById('itemMrp').value) || 0; const stock = parseInt(document.getElementById('itemStock').value) || 0; if(!name || !categoryId) return alert('Name & Category required'); let items = DB.get('items') || []; if(id) { const idx = items.findIndex(i=>i.id===id); items[idx] = {...items[idx], name, code, brand, categoryId, cost, price, mrp, stock, image: window.tmpImg || items[idx].image}; } else { items.push({id: Date.now(), name, code, brand, categoryId, cost, price, mrp, stock, image: window.tmpImg}); } DB.set('items', items); window.tmpImg = ''; closeModal(); renderItems(); }
         function deleteItem(id) { if(!confirm('Move to Trash?')) return; let items = DB.get('items') || []; const item = items.find(i => i.id === id); if(item) { moveToTrash('item', item); DB.set('items', items.filter(i => i.id !== id)); closeModal(); renderItems(); } }
 
@@ -788,7 +817,11 @@
                             <div class="flex justify-between items-center p-2 border-b border-[var(--border)]">
                                 <div>
                                     <p class="font-medium">${p.itemName} <span class="text-[10px] text-[var(--muted)]">(${p.itemBrand || 'No Brand'})</span></p>
-                                    <p class="text-xs text-[var(--muted)]">${new Date(p.date).toLocaleString()} - Qty: ${p.qty} @ ${CURRENCY}${p.cost} <span class="font-bold ${p.payType === 'cash' ? 'text-[var(--danger)]' : 'text-[var(--warning)]'}">(${p.payType ? p.payType.toUpperCase() : 'N/A'})</span></p>
+                                    <p class="text-xs text-[var(--muted)]">
+                                        ${new Date(p.date).toLocaleString()} - Qty: ${p.qty} @ ${CURRENCY}${p.cost} 
+                                        <span class="font-bold ${p.payType === 'cash' ? 'text-[var(--danger)]' : 'text-[var(--warning)]'}">(${p.payType ? p.payType.toUpperCase() : 'N/A'})</span>
+                                        ${p.supplierName ? `| <span class="text-[var(--accent)]">${p.supplierName}</span>` : ''}
+                                    </p>
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <p class="font-display font-bold">${CURRENCY}${p.totalCost.toFixed(0)}</p>
@@ -806,6 +839,7 @@
             if(editId && settings.isStoreClosed) { alert("Store is closed. Reopen store from Stock Closing to edit purchases."); return; }
 
             const items = DB.get('items') || [];
+            const suppliers = DB.get('suppliers') || [];
             const p = editId ? (DB.get('purchases') || []).find(x => x.id == editId) : null;
             
             openModal(`
@@ -818,7 +852,10 @@
                     
                     <div class="grid grid-cols-2 gap-3">
                         <input type="text" id="purchaseBrand" class="input-field" placeholder="Brand Name" value="${p ? p.itemBrand : ''}">
-                        <div></div>
+                        <select id="purchaseSupplier" class="input-field">
+                            <option value="">Select Supplier (Optional)</option>
+                            ${suppliers.map(s => `<option value="${s.id}" data-name="${s.name}" ${p && p.supplierId == s.id ? 'selected' : ''}>${s.name}</option>`).join('')}
+                        </select>
                     </div>
 
                     <div id="purchasePriceHistoryContainer" class="hidden">
@@ -902,6 +939,10 @@
             const date = document.getElementById('purchaseDate').value; 
             const payType = document.getElementById('purchasePayType').value; 
             
+            const supSel = document.getElementById('purchaseSupplier');
+            const supplierId = supSel.value ? Number(supSel.value) : null;
+            const supplierName = supSel.value ? supSel.options[supSel.selectedIndex].getAttribute('data-name') : '';
+            
             if(!itemId || !qty || !newCost) return alert('Fill all fields'); 
             
             let items = DB.get('items') || []; 
@@ -931,11 +972,11 @@
 
                 items[itemIdx].stock += qty;
 
-                purchases[pIdx] = { ...oldP, itemId, itemName, itemBrand: newBrand, qty, cost: newCost, totalCost: qty * newCost, date, payType };
+                purchases[pIdx] = { ...oldP, itemId, itemName, itemBrand: newBrand, qty, cost: newCost, totalCost: qty * newCost, date, payType, supplierId, supplierName };
                 
             } else {
                 items[itemIdx].stock += qty; 
-                purchases.push({ id: Date.now(), itemId, itemName, itemBrand: newBrand, qty, cost: newCost, totalCost: qty * newCost, date, payType });
+                purchases.push({ id: Date.now(), itemId, itemName, itemBrand: newBrand, qty, cost: newCost, totalCost: qty * newCost, date, payType, supplierId, supplierName });
             }
 
             DB.set('items', items); 
@@ -1075,6 +1116,7 @@
             if(!keepCart) cart = [];
             const tx = DB.get('transactions') || [];
             const recentTx = tx.slice(-5).reverse();
+            const settings = DB.get('settings');
             
             let custIdVal = '';
             let custNameVal = '';
@@ -1105,11 +1147,15 @@
                             <div id="billCustResults" class="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto z-50 hidden"></div>
                             <input type="hidden" id="billCustId" value="${custIdVal}">
                         </div>
-                        <select id="billPayType" class="input-field mb-3"><option value="cash">Cash</option><option value="credit">Credit</option></select>
+                        <select id="billPayType" class="input-field mb-3">
+                            <option value="cash">Cash</option>
+                            <option value="upi">UPI</option>
+                            <option value="credit">Credit</option>
+                        </select>
                         <h3 class="font-display font-bold mb-2">Cart</h3>
                         <div class="space-y-2 max-h-64 overflow-y-auto mb-3" id="cartDiv"><p class="text-[var(--muted)] text-center py-4 text-sm">Empty</p></div>
                         <div class="flex items-center gap-2 mb-2"><label class="text-xs text-[var(--muted)]">Bill Discount %</label><input type="number" id="billDiscount" class="input-field w-20 text-center" value="0" oninput="updateCart()"></div>
-                        <input type="text" id="billQuote" class="input-field mb-3" placeholder="Wishes/Quote (e.g. Visit Again)">
+                        <input type="text" id="billQuote" class="input-field mb-3" placeholder="Wishes/Quote" value="${settings.defaultQuote || ''}">
                         <div class="border-t border-[var(--border)] pt-3 mb-3" id="totalsSection"></div>
                         <button onclick="processBill()" class="btn btn-primary w-full font-bold">SAVE BILL</button>
                     </div>
@@ -1414,7 +1460,8 @@
             if(tx.quote) billText += `\n${tx.quote}\n`;
             billText += `\nThank you!`;
 
-            const waLink = `https://wa.me/?text=${encodeURIComponent(billText)}`;
+            const waPhone = tx.customerPhone ? tx.customerPhone.replace(/[^0-9]/g, '') : '';
+            const waLink = waPhone ? `https://wa.me/${waPhone}?text=${encodeURIComponent(billText)}` : `https://wa.me/?text=${encodeURIComponent(billText)}`;
 
             printArea.innerHTML = `
                 <div class="print-container">
@@ -1500,7 +1547,7 @@
         }
 
         // ===== REPORTS =====
-        function renderReports() { const today = new Date().toISOString().split('T')[0]; document.getElementById('pageContent').innerHTML = `<div class="card mb-4"><div class="grid grid-cols-2 md:grid-cols-5 gap-2 items-end"><div><label class="text-xs text-[var(--muted)]">From</label><input type="date" id="repFrom" class="input-field" value="${today}"></div><div><label class="text-xs text-[var(--muted)]">To</label><input type="date" id="repTo" class="input-field" value="${today}"></div><div><label class="text-xs text-[var(--muted)]">Type</label><select id="repType" class="input-field"><option value="all">All</option><option value="cash">Cash</option><option value="credit">Credit</option></select></div><button onclick="generateReport()" class="btn btn-primary h-fit">Go</button></div></div><div id="reportContent"></div>`; generateReport(); }
+        function renderReports() { const today = new Date().toISOString().split('T')[0]; document.getElementById('pageContent').innerHTML = `<div class="card mb-4"><div class="grid grid-cols-2 md:grid-cols-5 gap-2 items-end"><div><label class="text-xs text-[var(--muted)]">From</label><input type="date" id="repFrom" class="input-field" value="${today}"></div><div><label class="text-xs text-[var(--muted)]">To</label><input type="date" id="repTo" class="input-field" value="${today}"></div><div><label class="text-xs text-[var(--muted)]">Type</label><select id="repType" class="input-field"><option value="all">All</option><option value="cash">Cash</option><option value="upi">UPI</option><option value="credit">Credit</option></select></div><button onclick="generateReport()" class="btn btn-primary h-fit">Go</button></div></div><div id="reportContent"></div>`; generateReport(); }
         
         function generateReport() { 
             const from = new Date(document.getElementById('repFrom').value); 
@@ -1799,7 +1846,7 @@
             const payments = (DB.get('ledger')||[]).filter(l => l.customerId === custId); 
             
             const history = [
-                ...transactions.map(t => ({ date: t.date, desc: `${t.type === 'credit' ? 'Credit Sale' : 'Cash Sale'} #${t.id}`, amount: t.total, type: 'debit' })), 
+                ...transactions.map(t => ({ date: t.date, desc: `${t.type === 'credit' ? 'Credit Sale' : (t.type === 'upi' ? 'UPI Sale' : 'Cash Sale')} #${t.id}`, amount: t.total, type: 'debit' })), 
                 ...payments.map(p => ({ date: p.date, desc: 'Payment Received', amount: p.amount, type: 'credit' }))
             ].sort((a,b) => new Date(b.date) - new Date(a.date)); 
             
@@ -1824,7 +1871,7 @@
                     `).join('')}
                 </div>
                 <div class="flex gap-2 mt-4">
-                    <a href="https://wa.me/?text=${encodeURIComponent(stmtText)}" target="_blank" class="btn btn-success flex-1">WhatsApp</a>
+                    <a href="https://wa.me/${customer.phone ? customer.phone.replace(/[^0-9]/g, '') : ''}?text=${encodeURIComponent(stmtText)}" target="_blank" class="btn btn-success flex-1">WhatsApp</a>
                     <button onclick="printCustomerLedger(${custId})" class="btn btn-primary flex-1">Print</button>
                 </div>
             `); 
@@ -1835,7 +1882,7 @@
             const transactions = (DB.get('transactions')||[]).filter(t => t.customerId === custId); 
             const payments = (DB.get('ledger')||[]).filter(l => l.customerId === custId); 
             const history = [
-                ...transactions.map(t => ({ date: t.date, desc: `${t.type === 'credit' ? 'Credit Sale' : 'Cash Sale'} #${t.id}`, amount: t.total, type: 'debit' })), 
+                ...transactions.map(t => ({ date: t.date, desc: `${t.type === 'credit' ? 'Credit Sale' : (t.type === 'upi' ? 'UPI Sale' : 'Cash Sale')} #${t.id}`, amount: t.total, type: 'debit' })), 
                 ...payments.map(p => ({ date: p.date, desc: 'Payment Received', amount: p.amount, type: 'credit' }))
             ].sort((a,b) => new Date(b.date) - new Date(a.date));
             const settings = DB.get('settings');
@@ -1896,6 +1943,7 @@
                                 <input type="number" id="settingOpeningCash" class="input-field" placeholder="Opening Cash Balance" value="${settings.openingCash || 0}">
                                 <span class="text-xs text-[var(--muted)]">Opening cash</span>
                             </div>
+                            <input type="text" id="settingDefaultQuote" class="input-field" value="${settings.defaultQuote || ''}" placeholder="Default Wishes/Quote for Bills">
                             <button onclick="saveSettings()" class="btn btn-primary w-full">Save</button>
                         </div>
                     </div>
@@ -2017,8 +2065,31 @@
             }
         }
 
-        function previewShopImg(input) { if(input.files[0]) { const reader = new FileReader(); reader.onload = (e) => { window.tmpShopImg = e.target.result; document.getElementById('shopImgPreview').innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover">`; }; reader.readAsDataURL(input.files[0]); } }
-        function saveSettings() { const settings = { shopName: document.getElementById('settingName').value.trim(), address: document.getElementById('settingAddress').value.trim(), phone: document.getElementById('settingPhone').value.trim(), upiId: document.getElementById('settingUpi').value.trim(), shopImage: window.tmpShopImg || DB.get('settings').shopImage, openingCash: parseFloat(document.getElementById('settingOpeningCash').value) || 0, nextBillId: DB.get('settings').nextBillId, isStoreClosed: DB.get('settings').isStoreClosed }; DB.set('settings', settings); document.getElementById('shopNameSidebar').textContent = settings.shopName; if(settings.shopImage) { document.getElementById('sidebarLogo').src = settings.shopImage; document.getElementById('sidebarLogo').classList.remove('hidden'); document.getElementById('sidebarLogoPlaceholder').classList.add('hidden'); } alert('Saved'); }
+        function previewShopImg(input) { 
+            if(input.files[0]) { 
+                processImage(input.files[0], (dataUrl) => {
+                    window.tmpShopImg = dataUrl; 
+                    document.getElementById('shopImgPreview').innerHTML = `<img src="${dataUrl}" class="w-full h-full object-cover">`; 
+                });
+            } 
+        }
+        function saveSettings() { 
+            const settings = { 
+                shopName: document.getElementById('settingName').value.trim(), 
+                address: document.getElementById('settingAddress').value.trim(), 
+                phone: document.getElementById('settingPhone').value.trim(), 
+                upiId: document.getElementById('settingUpi').value.trim(), 
+                shopImage: window.tmpShopImg || DB.get('settings').shopImage, 
+                openingCash: parseFloat(document.getElementById('settingOpeningCash').value) || 0, 
+                nextBillId: DB.get('settings').nextBillId, 
+                isStoreClosed: DB.get('settings').isStoreClosed,
+                defaultQuote: document.getElementById('settingDefaultQuote').value.trim()
+            }; 
+            DB.set('settings', settings); 
+            document.getElementById('shopNameSidebar').textContent = settings.shopName; 
+            if(settings.shopImage) { document.getElementById('sidebarLogo').src = settings.shopImage; document.getElementById('sidebarLogo').classList.remove('hidden'); document.getElementById('sidebarLogoPlaceholder').classList.add('hidden'); } 
+            alert('Saved'); 
+        }
 
         currentUser = DB.get('currentUser');
         if(currentUser) showApp();
