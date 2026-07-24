@@ -310,7 +310,7 @@
                 { id: 2, name: 'Rice 5kg', code: 'RIC05', categoryId: 2, brand: 'India Gate', price: 450, mrp: 500, cost: 380, stock: 100, image: '' }
             ]);
             if (!DB.get('customers')) DB.set('customers', [{ id: 1, name: 'John Doe', phone: '9876543210', address: '123 Main St', balance: 0 }]);
-            if (!DB.get('suppliers')) DB.set('suppliers', [{ id: 1, name: 'ABC Wholesale', phone: '9123456780', address: 'Industrial Area' }]);
+            if (!DB.get('suppliers')) DB.set('suppliers', [{ id: 1, name: 'ABC Wholesale', phone: '9123456780', address: 'Industrial Area', balance: 0 }]);
             if (!DB.get('transactions')) DB.set('transactions', []);
             if (!DB.get('ledger')) DB.set('ledger', []);
             if (!DB.get('purchases')) DB.set('purchases', []);
@@ -336,7 +336,7 @@
             if (user) {
                 if (isAdminChecked && user.role !== 'admin') { document.getElementById('loginError').textContent = "User is not an Admin"; document.getElementById('loginError').classList.remove('hidden'); return; }
                 currentUser = user; DB.set('currentUser', user); showApp();
-            } else { document.getElementById('loginError').textContent = "Invalid credentials"; document.getElementById('loginError').classList.remove('hidden'); setTimeout(() => document.getElementById('loginError').classList.add('hidden'), 3000); }
+            } else { document.getElementById('loginError').textContent = "Invalid credentials"; document.getElementById('loginError').classList.remove('hidden'); setTimeout(() => document.getElementById('loginError').classList.remove('hidden'), 3000); }
         }
         function handleLogout() { DB.remove('currentUser'); location.reload(); }
         
@@ -740,24 +740,50 @@
         function renderSuppliers() {
             const suppliers = DB.get('suppliers') || [];
             document.getElementById('pageContent').innerHTML = `
-                <div class="flex justify-between items-center mb-4">
-                    <p class="text-[var(--muted)] text-sm">${suppliers.length} suppliers</p>
-                    <button onclick="openSupplierModal()" class="btn btn-primary text-sm py-2 px-4">Add Supplier</button>
+                <div class="flex justify-between items-center mb-4 gap-2 flex-wrap">
+                    <input type="text" id="supplierSearch" class="input-field flex-1 min-w-[150px]" placeholder="Search suppliers..." oninput="renderSupplierList()">
+                    <div class="flex gap-2">
+                        <button onclick="exportSuppliers()" class="btn btn-success text-sm py-2 px-4">Export Excel</button>
+                        <button onclick="openSupplierModal()" class="btn btn-primary text-sm py-2 px-4">Add Supplier</button>
+                    </div>
                 </div>
-                <div class="grid md:grid-cols-2 gap-3">
-                    ${suppliers.map(s => `
-                        <div class="card flex justify-between items-center">
-                            <div class="flex-1">
-                                <p class="font-medium">${s.name} <span class="text-[var(--muted)] text-xs">${s.phone || ''}</span></p>
-                                <p class="text-xs text-[var(--muted)]">${s.address || ''}</p>
-                            </div>
-                            <div class="flex gap-2">
-                                <button onclick="openSupplierModal(${s.id})" class="btn btn-secondary text-xs py-1 px-2">Edit</button>
-                                <button onclick="deleteSupplier(${s.id})" class="text-[var(--danger)] text-sm">Del</button>
-                            </div>
-                        </div>
-                    `).join('') || '<p class="text-center text-[var(--muted)] py-4">No suppliers found</p>'}
+                <div class="grid md:grid-cols-2 gap-3" id="supplierList">
+                    ${renderSupplierList()}
                 </div>`;
+        }
+        
+        function renderSupplierList() {
+            const search = (document.getElementById('supplierSearch')?.value || '').toLowerCase();
+            const suppliers = (DB.get('suppliers') || []).filter(s => s.name.toLowerCase().includes(search) || (s.phone && s.phone.includes(search)));
+            return suppliers.map(s => `
+                <div class="card flex justify-between items-center">
+                    <div class="flex-1">
+                        <p class="font-medium">${s.name} <span class="text-[var(--muted)] text-xs">${s.phone || ''}</span></p>
+                        <p class="text-xs text-[var(--muted)]">${s.address || ''}</p>
+                        <p class="text-sm mt-1">Bal: <span class="font-bold ${s.balance > 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'}">${CURRENCY}${(s.balance||0).toFixed(0)}</span></p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="openSupplierModal(${s.id})" class="btn btn-secondary text-xs py-1 px-2">Edit</button>
+                        <button onclick="deleteSupplier(${s.id})" class="text-[var(--danger)] text-sm">Del</button>
+                    </div>
+                </div>
+            `).join('') || '<p class="text-center text-[var(--muted)] py-4">No suppliers found</p>';
+        }
+
+        function exportSuppliers() {
+            const suppliers = DB.get('suppliers') || [];
+            if(suppliers.length === 0) return alert("No suppliers to export");
+            let csv = 'ID,Name,Phone,Address,Balance\n';
+            suppliers.forEach(s => { 
+                const sanitize = (str) => `"${String(str||'').replace(/"/g, '""')}"`; 
+                csv += `${s.id},${sanitize(s.name)},${sanitize(s.phone)},${sanitize(s.address)},${s.balance||0}\n`; 
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
+            const url = URL.createObjectURL(blob); 
+            const link = document.createElement('a'); 
+            link.setAttribute('href', url); 
+            link.setAttribute('download', `suppliers_export_${new Date().toISOString().split('T')[0]}.csv`); 
+            link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
         function openSupplierModal(id = null) {
@@ -769,6 +795,7 @@
                     <input type="text" id="supName" class="input-field" placeholder="Supplier Name" value="${s ? s.name : ''}">
                     <input type="tel" id="supPhone" class="input-field" placeholder="Phone Number" value="${s ? s.phone : ''}">
                     <input type="text" id="supAddress" class="input-field" placeholder="Address" value="${s ? s.address : ''}">
+                    <input type="number" id="supOpeningBalance" class="input-field" placeholder="Opening Balance / Due" value="${s ? (s.balance || 0) : 0}">
                     <button onclick="saveSupplier()" class="btn btn-primary w-full">Save</button>
                 </div>`);
         }
@@ -778,6 +805,7 @@
             const name = document.getElementById('supName').value.trim();
             const phone = document.getElementById('supPhone').value.trim();
             const address = document.getElementById('supAddress').value.trim();
+            const balance = parseFloat(document.getElementById('supOpeningBalance').value) || 0;
             if(!name) return alert("Supplier name is required");
             
             let suppliers = DB.get('suppliers') || [];
@@ -787,9 +815,10 @@
                     suppliers[idx].name = name;
                     suppliers[idx].phone = phone;
                     suppliers[idx].address = address;
+                    suppliers[idx].balance = balance;
                 }
             } else {
-                suppliers.push({ id: Date.now(), name, phone, address });
+                suppliers.push({ id: Date.now(), name, phone, address, balance });
             }
             DB.set('suppliers', suppliers);
             closeModal();
@@ -852,10 +881,10 @@
                     
                     <div class="grid grid-cols-2 gap-3">
                         <input type="text" id="purchaseBrand" class="input-field" placeholder="Brand Name" value="${p ? p.itemBrand : ''}">
-                        <select id="purchaseSupplier" class="input-field">
-                            <option value="">Select Supplier (Optional)</option>
-                            ${suppliers.map(s => `<option value="${s.id}" data-name="${s.name}" ${p && p.supplierId == s.id ? 'selected' : ''}>${s.name}</option>`).join('')}
-                        </select>
+                        <input type="text" id="purchaseSupplierInput" list="suppliersList" class="input-field" placeholder="Search Supplier..." value="${p && p.supplierName ? p.supplierName : ''}">
+                        <datalist id="suppliersList">
+                            ${suppliers.map(s => `<option value="${s.name}">${s.phone}</option>`).join('')}
+                        </datalist>
                     </div>
 
                     <div id="purchasePriceHistoryContainer" class="hidden">
@@ -939,9 +968,11 @@
             const date = document.getElementById('purchaseDate').value; 
             const payType = document.getElementById('purchasePayType').value; 
             
-            const supSel = document.getElementById('purchaseSupplier');
-            const supplierId = supSel.value ? Number(supSel.value) : null;
-            const supplierName = supSel.value ? supSel.options[supSel.selectedIndex].getAttribute('data-name') : '';
+            const supNameInput = document.getElementById('purchaseSupplierInput').value.trim();
+            const suppliers = DB.get('suppliers') || [];
+            const sup = suppliers.find(s => s.name === supNameInput);
+            const supplierId = sup ? sup.id : null;
+            const supplierName = sup ? sup.name : (supNameInput || '');
             
             if(!itemId || !qty || !newCost) return alert('Fill all fields'); 
             
@@ -961,15 +992,26 @@
             items[itemIdx].brand = newBrand;
 
             let purchases = DB.get('purchases') || [];
+            let sIdx = -1;
+            if (supplierId) {
+                sIdx = suppliers.findIndex(s => s.id === supplierId);
+            }
             
             if (editId) {
                 const pIdx = purchases.findIndex(p => p.id == editId);
                 if (pIdx === -1) return alert('Purchase record not found');
                 const oldP = purchases[pIdx];
 
+                // Reverse old stock and supplier balance
                 const oldItemIdx = items.findIndex(i => Number(i.id) === Number(oldP.itemId));
                 if(oldItemIdx !== -1) items[oldItemIdx].stock -= oldP.qty;
+                
+                if (oldP.supplierId && oldP.payType === 'credit') {
+                    const oldSIdx = suppliers.findIndex(s => s.id === oldP.supplierId);
+                    if(oldSIdx !== -1) suppliers[oldSIdx].balance -= oldP.totalCost;
+                }
 
+                // Apply new stock
                 items[itemIdx].stock += qty;
 
                 purchases[pIdx] = { ...oldP, itemId, itemName, itemBrand: newBrand, qty, cost: newCost, totalCost: qty * newCost, date, payType, supplierId, supplierName };
@@ -979,8 +1021,14 @@
                 purchases.push({ id: Date.now(), itemId, itemName, itemBrand: newBrand, qty, cost: newCost, totalCost: qty * newCost, date, payType, supplierId, supplierName });
             }
 
+            // Apply new supplier balance
+            if (sIdx !== -1 && payType === 'credit') {
+                suppliers[sIdx].balance += (qty * newCost);
+            }
+            
             DB.set('items', items); 
             DB.set('purchases', purchases); 
+            DB.set('suppliers', suppliers);
             closeModal(); 
             renderPurchases(); 
         }
@@ -992,11 +1040,21 @@
             if(!p) return alert('Purchase not found');
 
             let items = DB.get('items') || [];
+            let suppliers = DB.get('suppliers') || [];
+
             const itemIdx = items.findIndex(i => Number(i.id) === Number(p.itemId));
             if(itemIdx !== -1) {
                 items[itemIdx].stock -= p.qty;
                 if(items[itemIdx].stock < 0) items[itemIdx].stock = 0; 
                 DB.set('items', items);
+            }
+
+            if (p.supplierId && p.payType === 'credit') {
+                const sIdx = suppliers.findIndex(s => s.id === p.supplierId);
+                if(sIdx !== -1) {
+                    suppliers[sIdx].balance -= p.totalCost;
+                    DB.set('suppliers', suppliers);
+                }
             }
 
             DB.set('purchases', purchases.filter(x => x.id != id));
@@ -1016,7 +1074,7 @@
                         ${returns.slice().reverse().map(r => `
                             <div class="flex justify-between items-center p-2 border-b border-[var(--border)]">
                                 <div>
-                                    <p class="font-medium">${r.itemName}</p>
+                                    <p class="font-medium">${r.itemName} ${r.customerName ? `<span class="text-[10px] text-[var(--accent)]">(Customer: ${r.customerName})</span>` : ''}</p>
                                     <p class="text-xs text-[var(--muted)]">
                                         ${new Date(r.date).toLocaleString()} - 
                                         Full: <span class="font-medium">${r.goodQty}</span> | 
@@ -1034,6 +1092,7 @@
 
         function openReturnModal() {
             const items = DB.get('items') || [];
+            const customers = DB.get('customers') || [];
             openModal(`
                 <h3 class="font-display font-bold mb-4">Record Return / Loss</h3>
                 <div class="space-y-3">
@@ -1041,6 +1100,10 @@
                         <option value="">Select Item</option>
                         ${items.map(i => `<option value="${i.id}">${i.name} (Stock: ${i.stock})</option>`).join('')}
                     </select>
+                    <input type="text" id="returnCustInput" list="returnCustList" class="input-field" placeholder="Customer Name (Optional - for Customer Returns)">
+                    <datalist id="returnCustList">
+                        ${customers.map(c => `<option value="${c.name}">${c.phone}</option>`).join('')}
+                    </datalist>
                     <div class="grid grid-cols-3 gap-3">
                         <div>
                             <label class="text-xs text-[var(--muted)]">Full Qty</label>
@@ -1070,6 +1133,13 @@
             const date = document.getElementById('returnDate').value;
             const note = document.getElementById('returnNote').value.trim();
             
+            const custInput = document.getElementById('returnCustInput').value.trim();
+            const customers = DB.get('customers') || [];
+            const cust = customers.find(c => c.name === custInput);
+            const customerId = cust ? cust.id : null;
+            const customerName = cust ? cust.name : (custInput || '');
+            const returnType = customerId ? 'Customer Return' : 'Internal/Loss';
+            
             if(!itemId) return alert('Select an item');
             const totalReturn = goodQty + damagedQty + expiredQty;
             if(totalReturn <= 0) return alert('Enter at least one quantity');
@@ -1078,9 +1148,13 @@
             const idx = items.findIndex(i => Number(i.id) === itemId);
             if(idx === -1) return alert('Item not found');
             
-            if(items[idx].stock < totalReturn) return alert(`Insufficient stock. Available: ${items[idx].stock}`);
-            
-            items[idx].stock -= totalReturn;
+            // If Customer Return, add back to stock. If Internal Loss, deduct from stock.
+            if (customerId) {
+                items[idx].stock += totalReturn;
+            } else {
+                if(items[idx].stock < totalReturn) return alert(`Insufficient stock. Available: ${items[idx].stock}`);
+                items[idx].stock -= totalReturn;
+            }
             DB.set('items', items);
             
             const returns = DB.get('returnsLosses') || [];
@@ -1092,7 +1166,10 @@
                 damagedQty,
                 expiredQty,
                 date: new Date(date).toISOString(),
-                note
+                note,
+                returnType,
+                customerId,
+                customerName
             });
             DB.set('returnsLosses', returns);
             
@@ -1351,7 +1428,15 @@
 
             if(customer && customer.balance > 0) {
                 const grandTotal = billValue + customer.balance;
-                totalsHtml += `<div class="border-t border-dashed border-[var(--border)] mt-2 pt-2"><div class="flex justify-between text-sm text-[var(--danger)]"><span>Previous Balance</span><span>${CURRENCY}${customer.balance.toFixed(0)}</span></div><div class="flex justify-between font-display font-bold text-lg text-[var(--fg)] mt-1"><span>Grand Total</span><span>${CURRENCY}${grandTotal.toFixed(0)}</span></div></div>`;
+                const finalTotal = Math.round(grandTotal);
+                const roundOff = finalTotal - grandTotal;
+                totalsHtml += `<div class="border-t border-dashed border-[var(--border)] mt-2 pt-2"><div class="flex justify-between text-sm text-[var(--danger)]"><span>Previous Balance</span><span>${CURRENCY}${customer.balance.toFixed(0)}</span></div><div class="flex justify-between font-display font-bold text-lg text-[var(--fg)] mt-1"><span>Grand Total</span><span>${CURRENCY}${grandTotal.toFixed(2)}</span></div><div class="flex justify-between text-sm text-[var(--muted)] mt-1"><span>Round Off</span><span>${roundOff >= 0 ? '+' : ''}${CURRENCY}${roundOff.toFixed(2)}</span></div><div class="flex justify-between font-display font-bold text-xl text-[var(--accent)] mt-1 pt-1 border-t border-[var(--border)]"><span>Net Payable</span><span>${CURRENCY}${finalTotal.toFixed(0)}</span></div></div>`;
+            } else {
+                const finalTotal = Math.round(billValue);
+                const roundOff = finalTotal - billValue;
+                if (roundOff !== 0) {
+                    totalsHtml += `<div class="border-t border-dashed border-[var(--border)] mt-2 pt-2"><div class="flex justify-between text-sm text-[var(--muted)] mt-1"><span>Round Off</span><span>${roundOff >= 0 ? '+' : ''}${CURRENCY}${roundOff.toFixed(2)}</span></div><div class="flex justify-between font-display font-bold text-xl text-[var(--accent)] mt-1 pt-1 border-t border-[var(--border)]"><span>Net Payable</span><span>${CURRENCY}${finalTotal.toFixed(0)}</span></div></div>`;
+                }
             }
             document.getElementById('totalsSection').innerHTML = totalsHtml;
         }
@@ -1393,6 +1478,8 @@
             const total = totalDefaultPrice - totalDiscount; 
             const prevBalance = customer ? (customer.balance || 0) : 0;
             const grandTotal = total + prevBalance;
+            const finalTotal = Math.round(grandTotal);
+            const roundOff = finalTotal - grandTotal;
             
             const profit = cart.reduce((a,i)=>a+((i.sellPrice-i.cost)*i.qty),0) - billDiscount; 
 
@@ -1420,6 +1507,8 @@
                 total, 
                 prevBalance,
                 grandTotal,
+                roundOff,
+                finalTotal,
                 quote,
                 profit, 
                 type: payType 
@@ -1445,18 +1534,20 @@
         }
 
         function showBillPreview(tx, settings, customer) {
-            const upiLink = `upi://pay?pa=${settings.upiId}&pn=${encodeURIComponent(settings.shopName)}&am=${tx.total.toFixed(2)}&cu=INR`;
+            const upiLink = `upi://pay?pa=${settings.upiId}&pn=${encodeURIComponent(settings.shopName)}&am=${tx.finalTotal.toFixed(2)}&cu=INR`;
             const printArea = document.getElementById('printArea');
             
             let billText = `*${settings.shopName}*\nBill #: ${tx.id}\nDate: ${new Date(tx.date).toLocaleString()}\nCustomer: ${tx.customerName}\n-------------------\n`;
             tx.items.forEach(i => { billText += `${i.name} (${i.brand || 'N/A'})\n  ${i.qty} x ${i.price} = ${CURRENCY}${(i.price*i.qty).toFixed(0)}\n`; });
             billText += `-------------------\nSubtotal: ${CURRENCY}${tx.totalDefaultPrice.toFixed(0)}\n`;
             if(tx.totalDiscount > 0) billText += `Discount: -${CURRENCY}${tx.totalDiscount.toFixed(0)}\n`;
-            billText += `*Bill Total: ${CURRENCY}${tx.total.toFixed(0)}*\n`;
+            billText += `Bill Total: ${CURRENCY}${tx.total.toFixed(0)}\n`;
             if(tx.prevBalance > 0) {
                 billText += `Prev Balance: ${CURRENCY}${tx.prevBalance.toFixed(0)}\n`;
-                billText += `*Grand Total: ${CURRENCY}${tx.grandTotal.toFixed(0)}*\n`;
+                billText += `Grand Total: ${CURRENCY}${tx.grandTotal.toFixed(2)}\n`;
             }
+            billText += `Round Off: ${tx.roundOff >= 0 ? '+' : ''}${CURRENCY}${tx.roundOff.toFixed(2)}\n`;
+            billText += `*Net Payable: ${CURRENCY}${tx.finalTotal.toFixed(0)}*\n`;
             if(tx.quote) billText += `\n${tx.quote}\n`;
             billText += `\nThank you!`;
 
@@ -1510,9 +1601,11 @@
                                 ${tx.prevBalance > 0 ? `
                                 <div style="margin-top: 10px; border-top: 1px dashed #000; padding-top: 10px;">
                                     <div style="display: flex; justify-content: space-between; font-size: 12px;"><span>Prev Balance:</span><span>${CURRENCY}${tx.prevBalance.toFixed(0)}</span></div>
-                                    <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-top: 4px;"><span>GRAND TOTAL:</span><span>${CURRENCY}${tx.grandTotal.toFixed(0)}</span></div>
+                                    <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-top: 4px;"><span>Grand Total:</span><span>${CURRENCY}${tx.grandTotal.toFixed(2)}</span></div>
                                 </div>
                                 ` : ''}
+                                <div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 4px;"><span>Round Off:</span><span>${tx.roundOff >= 0 ? '+' : ''}${CURRENCY}${tx.roundOff.toFixed(2)}</span></div>
+                                <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; margin-top: 6px; border-top: 2px solid #000; padding-top: 6px;"><span>NET PAYABLE:</span><span>${CURRENCY}${tx.finalTotal.toFixed(0)}</span></div>
                             </div>
                             <div style="text-align: center; margin-top: 20px;"><div id="qrcode"></div><p style="font-size: 10px; margin-top: 6px; color: #555;">Scan to Pay via UPI</p></div>
                             <div style="text-align: center; margin-top: 16px; font-size: 11px; color: #888;">
@@ -1574,10 +1667,14 @@
                 const d = new Date(r.date); 
                 return d >= from && d <= to; 
             });
-            let totGoodRet = 0, totDamaged = 0, totExpired = 0, lossValue = 0;
+            let totCustRet = 0, totIntRet = 0, totDamaged = 0, totExpired = 0, lossValue = 0;
             const allItems = DB.get('items') || [];
             periodReturns.forEach(r => {
-                totGoodRet += r.goodQty;
+                if (r.returnType === 'Customer Return') {
+                    totCustRet += (r.goodQty + r.damagedQty + r.expiredQty);
+                } else {
+                    totIntRet += r.goodQty;
+                }
                 totDamaged += r.damagedQty;
                 totExpired += r.expiredQty;
                 const item = allItems.find(i => i.id === r.itemId);
@@ -1646,12 +1743,20 @@
                         <h4 class="font-bold mb-3">Returns & Losses</h4>
                         <div class="grid grid-cols-2 gap-2 mb-3">
                             <div class="bg-[var(--bg)] p-2 rounded-lg text-center">
-                                <p class="text-xs text-[var(--muted)]">Total Good Returns</p>
-                                <p class="font-display text-lg font-bold">${totGoodRet}</p>
+                                <p class="text-xs text-[var(--muted)]">Customer Returns</p>
+                                <p class="font-display text-lg font-bold text-[var(--accent)]">${totCustRet}</p>
                             </div>
                             <div class="bg-[var(--bg)] p-2 rounded-lg text-center">
-                                <p class="text-xs text-[var(--muted)]">Damaged / Expired Qty</p>
-                                <p class="font-display text-lg font-bold text-[var(--danger)]">${totDamaged + totExpired}</p>
+                                <p class="text-xs text-[var(--muted)]">Internal Returns</p>
+                                <p class="font-display text-lg font-bold">${totIntRet}</p>
+                            </div>
+                            <div class="bg-[var(--bg)] p-2 rounded-lg text-center">
+                                <p class="text-xs text-[var(--muted)]">Damaged Qty</p>
+                                <p class="font-display text-lg font-bold text-[var(--danger)]">${totDamaged}</p>
+                            </div>
+                            <div class="bg-[var(--bg)] p-2 rounded-lg text-center">
+                                <p class="text-xs text-[var(--muted)]">Expired Qty</p>
+                                <p class="font-display text-lg font-bold text-[var(--warning)]">${totExpired}</p>
                             </div>
                         </div>
                         <div class="bg-red-50 border border-red-200 p-2 rounded-lg text-center mb-3">
@@ -1662,7 +1767,7 @@
                             ${periodReturns.slice().reverse().map(r => `
                                 <div class="p-2 bg-[var(--bg)] rounded-lg text-xs">
                                     <div class="flex justify-between">
-                                        <span class="font-medium">${r.itemName}</span>
+                                        <span class="font-medium">${r.itemName} ${r.customerName ? `(${r.customerName})` : ''}</span>
                                         <span class="text-[var(--muted)]">${new Date(r.date).toLocaleDateString()}</span>
                                     </div>
                                     <div class="flex gap-3 mt-1 text-[11px]">
@@ -1682,25 +1787,50 @@
         function renderCustomers() { 
             const cust = DB.get('customers') || []; 
             document.getElementById('pageContent').innerHTML = `
-                <div class="flex justify-between items-center mb-4">
-                    <p class="text-[var(--muted)] text-sm">${cust.length} customers</p>
-                    <button onclick="openCustomerModal()" class="btn btn-primary text-sm py-2 px-4">Add</button>
+                <div class="flex justify-between items-center mb-4 gap-2 flex-wrap">
+                    <input type="text" id="custSearch" class="input-field flex-1 min-w-[150px]" placeholder="Search customers..." oninput="renderCustomerList()">
+                    <div class="flex gap-2">
+                        <button onclick="exportCustomers()" class="btn btn-success text-sm py-2 px-4">Export Excel</button>
+                        <button onclick="openCustomerModal()" class="btn btn-primary text-sm py-2 px-4">Add Customer</button>
+                    </div>
                 </div>
-                <div class="grid md:grid-cols-2 gap-3">
-                    ${cust.map(c => `
-                        <div class="card flex justify-between items-center">
-                            <div onclick="viewCustomerLedger(${c.id})" class="cursor-pointer flex-1">
-                                <p class="font-medium">${c.name} <span class="text-[var(--muted)] text-xs">${c.phone}</span></p>
-                                <p class="text-xs text-[var(--muted)]">${c.address || ''}</p>
-                                <p class="text-sm mt-1">Bal: <span class="font-bold ${c.balance > 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'}">${CURRENCY}${(c.balance||0).toFixed(0)}</span></p>
-                            </div>
-                            <div class="flex gap-2">
-                                <button onclick="openCustomerModal(${c.id})" class="btn btn-secondary text-xs py-1 px-2">Edit</button>
-                                <button onclick="deleteCustomer(${c.id})" class="text-[var(--danger)] text-sm">Del</button>
-                            </div>
-                        </div>
-                    `).join('')}
+                <div class="grid md:grid-cols-2 gap-3" id="custList">
+                    ${renderCustomerList()}
                 </div>`; 
+        }
+
+        function renderCustomerList() {
+            const search = (document.getElementById('custSearch')?.value || '').toLowerCase();
+            const cust = (DB.get('customers') || []).filter(c => c.name.toLowerCase().includes(search) || (c.phone && c.phone.includes(search)));
+            return cust.map(c => `
+                <div class="card flex justify-between items-center">
+                    <div onclick="viewCustomerLedger(${c.id})" class="cursor-pointer flex-1">
+                        <p class="font-medium">${c.name} <span class="text-[var(--muted)] text-xs">${c.phone}</span></p>
+                        <p class="text-xs text-[var(--muted)]">${c.address || ''}</p>
+                        <p class="text-sm mt-1">Bal: <span class="font-bold ${c.balance > 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'}">${CURRENCY}${(c.balance||0).toFixed(0)}</span></p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="openCustomerModal(${c.id})" class="btn btn-secondary text-xs py-1 px-2">Edit</button>
+                        <button onclick="deleteCustomer(${c.id})" class="text-[var(--danger)] text-sm">Del</button>
+                    </div>
+                </div>
+            `).join('') || '<p class="text-center text-[var(--muted)] py-4">No customers found</p>';
+        }
+        
+        function exportCustomers() {
+            const cust = DB.get('customers') || [];
+            if(cust.length === 0) return alert("No customers to export");
+            let csv = 'ID,Name,Phone,Address,Balance\n';
+            cust.forEach(c => { 
+                const sanitize = (str) => `"${String(str||'').replace(/"/g, '""')}"`; 
+                csv += `${c.id},${sanitize(c.name)},${sanitize(c.phone)},${sanitize(c.address)},${c.balance||0}\n`; 
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
+            const url = URL.createObjectURL(blob); 
+            const link = document.createElement('a'); 
+            link.setAttribute('href', url); 
+            link.setAttribute('download', `customers_export_${new Date().toISOString().split('T')[0]}.csv`); 
+            link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
         function openCustomerModal(id = null) { 
@@ -1712,7 +1842,7 @@
                     <input type="text" id="cName" class="input-field" placeholder="Name" value="${c ? c.name : ''}">
                     <input type="tel" id="cPhone" class="input-field" placeholder="Phone" value="${c ? c.phone : ''}">
                     <input type="text" id="cAddress" class="input-field" placeholder="Address" value="${c ? c.address : ''}">
-                    ${!c ? `<input type="number" id="cOpeningBalance" class="input-field" placeholder="Opening Balance (Due)">` : ''}
+                    <input type="number" id="cOpeningBalance" class="input-field" placeholder="Opening Balance / Due" value="${c ? (c.balance || 0) : 0}">
                     <button onclick="saveCustomer()" class="btn btn-primary w-full">Save</button>
                 </div>`); 
         }
@@ -1722,6 +1852,8 @@
             const name = document.getElementById('cName').value.trim(); 
             const phone = document.getElementById('cPhone').value.trim(); 
             const address = document.getElementById('cAddress').value.trim(); 
+            const balance = parseFloat(document.getElementById('cOpeningBalance').value) || 0;
+            
             if(!name) return; 
             let cust = DB.get('customers') || [];
             if(editId) {
@@ -1730,11 +1862,11 @@
                     cust[idx].name = name;
                     cust[idx].phone = phone;
                     cust[idx].address = address;
+                    cust[idx].balance = balance;
                 }
             } else {
-                const openingBalance = parseFloat(document.getElementById('cOpeningBalance').value) || 0;
                 const newId = Date.now();
-                cust.push({id: newId, name, phone, address, balance: openingBalance}); 
+                cust.push({id: newId, name, phone, address, balance}); 
                 
                 const billCustSearch = document.getElementById('billCustSearch');
                 if (billCustSearch) {
@@ -1757,13 +1889,13 @@
         // ===== LEDGER =====
         function renderLedger() { 
             const customers = DB.get('customers') || []; 
-            const purchases = DB.get('purchases') || [];
-            const creditPurchases = purchases.filter(p => p.payType === 'credit');
+            const suppliers = DB.get('suppliers') || [];
+            const totalSupplierDue = suppliers.reduce((a, s) => a + (s.balance || 0), 0);
             
             document.getElementById('pageContent').innerHTML = `
                 <div class="grid md:grid-cols-2 gap-4 mb-6">
                     <div class="card"><p class="text-xs text-[var(--muted)]">Total Customer Due</p><p class="font-display text-2xl font-bold text-[var(--danger)]">${CURRENCY}${customers.reduce((a, c) => a + (c.balance || 0), 0).toFixed(0)}</p></div>
-                    <div class="card"><p class="text-xs text-[var(--muted)]">Total Supplier Due</p><p class="font-display text-2xl font-bold text-[var(--warning)]">${CURRENCY}${creditPurchases.reduce((a, p) => a + p.totalCost, 0).toFixed(0)}</p></div>
+                    <div class="card"><p class="text-xs text-[var(--muted)]">Total Supplier Due</p><p class="font-display text-2xl font-bold text-[var(--warning)]">${CURRENCY}${totalSupplierDue.toFixed(0)}</p></div>
                 </div>
                 
                 <div class="card mb-6">
@@ -1777,20 +1909,12 @@
                 </div>
                 
                 <div class="card">
-                    <h4 class="font-bold mb-3 text-[var(--warning)]">Supplier Credit</h4>
-                    <div class="space-y-2">
-                        ${creditPurchases.slice().reverse().map(p => `
-                            <div class="flex justify-between items-center p-2 bg-[var(--bg)] rounded-lg">
-                                <div>
-                                    <p class="font-medium">${p.itemName}</p>
-                                    <p class="text-xs text-[var(--muted)]">${new Date(p.date).toLocaleString()}</p>
-                                </div>
-                                <div class="text-right">
-                                    <p class="font-display font-bold text-[var(--warning)]">${CURRENCY}${p.totalCost.toFixed(0)}</p>
-                                    <button onclick="openSupplierPaymentModal(${p.id})" class="btn btn-primary text-xs py-1 px-2 mt-1">Pay</button>
-                                </div>
-                            </div>
-                        `).join('') || '<p class="text-center text-[var(--muted)] text-sm">No supplier dues.</p>'}
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="font-bold text-[var(--warning)]">Supplier Accounts</h4>
+                        <button onclick="openSupplierAdvanceModal()" class="btn btn-warning text-xs py-1 px-3">Pay Advance</button>
+                    </div>
+                    <div class="grid gap-3" id="ledgerSupplierList">
+                        ${renderLedgerSupplierRows(suppliers)}
                     </div>
                 </div>`;
         }
@@ -1819,24 +1943,104 @@
             `).join('') || '<p class="text-center text-[var(--muted)] text-sm">No customers found.</p>';
         }
 
+        function renderLedgerSupplierRows(suppliers) {
+            return suppliers.map(s => `
+                <div class="flex justify-between items-center p-2 bg-[var(--bg)] rounded-lg">
+                    <div>
+                        <p class="font-medium">${s.name}</p>
+                        <p class="${s.balance > 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'} font-bold text-sm">
+                            ${s.balance > 0 ? 'Due: ' + CURRENCY + (s.balance||0).toFixed(0) : (s.balance < 0 ? 'Advance: ' + CURRENCY + Math.abs(s.balance).toFixed(0) : 'Settled')}
+                        </p>
+                    </div>
+                    <div class="flex gap-2">
+                        ${s.balance > 0 ? `<button onclick="openSupplierPaymentModal(null, ${s.id})" class="btn btn-primary text-xs py-1 px-3">Pay Due</button>` : ''}
+                    </div>
+                </div>
+            `).join('') || '<p class="text-center text-[var(--muted)] text-sm">No suppliers found.</p>';
+        }
+
         function openPaymentModal(custId, bal) { openModal(`<h3 class="font-display font-bold mb-4">Record Payment</h3><input type="number" id="paymentAmount" class="input-field mb-3" value="${bal}"><button onclick="savePayment(${custId})" class="btn btn-primary w-full">Save</button>`); }
         function savePayment(custId) { const amount = parseFloat(document.getElementById('paymentAmount').value); if(!amount || amount <= 0) return alert("Invalid"); let customers = DB.get('customers'); const idx = customers.findIndex(c => c.id === custId); if(idx !== -1) { customers[idx].balance -= amount; if(customers[idx].balance < 0) customers[idx].balance = 0; DB.set('customers', customers); } let ledger = DB.get('ledger') || []; ledger.push({id: Date.now(), customerId: custId, type: 'payment', amount, date: new Date().toISOString()}); DB.set('ledger', ledger); closeModal(); renderLedger(); }
         
-        function openSupplierPaymentModal(purchaseId) {
-            const p = (DB.get('purchases')||[]).find(x=>x.id===purchaseId);
-            if(!p) return;
-            openModal(`<h3 class="font-display font-bold mb-4">Pay Supplier</h3><p class="text-sm mb-2">Paying for: <strong>${p.itemName}</strong></p><p class="text-lg font-bold mb-3 text-[var(--warning)]">Amount: ${CURRENCY}${p.totalCost.toFixed(0)}</p><input type="number" id="supplierPayAmount" class="input-field mb-3" value="${p.totalCost}"><button onclick="saveSupplierPayment(${purchaseId})" class="btn btn-primary w-full">Pay</button>`);
+        function openSupplierPaymentModal(purchaseId = null, supId = null) {
+            let p = null;
+            let supplierId = supId;
+            let amount = 0;
+            
+            if (purchaseId) {
+                p = (DB.get('purchases')||[]).find(x=>x.id===purchaseId);
+                if(!p) return;
+                supplierId = p.supplierId;
+                amount = p.totalCost;
+            }
+            
+            if (!supplierId) return alert("Supplier not found");
+
+            openModal(`<h3 class="font-display font-bold mb-4">Pay Supplier</h3>
+            ${p ? `<p class="text-sm mb-2">Paying for: <strong>${p.itemName}</strong></p>` : ''}
+            <input type="hidden" id="supPayId" value="${supplierId}">
+            <input type="hidden" id="supPayPurchaseId" value="${purchaseId || ''}">
+            <input type="number" id="supplierPayAmount" class="input-field mb-3" value="${amount}" placeholder="Amount">
+            <button onclick="saveSupplierPayment()" class="btn btn-primary w-full">Pay</button>`);
         }
 
-        function saveSupplierPayment(purchaseId) {
+        function saveSupplierPayment() {
             const amount = parseFloat(document.getElementById('supplierPayAmount').value);
+            const supId = parseFloat(document.getElementById('supPayId').value);
+            const purchaseId = document.getElementById('supPayPurchaseId').value;
+            
             if(!amount || amount <= 0) return alert("Invalid amount");
+            
+            let suppliers = DB.get('suppliers') || [];
+            const idx = suppliers.findIndex(s => s.id === supId);
+            if(idx !== -1) {
+                suppliers[idx].balance -= amount;
+                DB.set('suppliers', suppliers);
+            }
+            
             let ledger = DB.get('ledger') || [];
-            ledger.push({id: Date.now(), type: 'supplier_payment', amount, date: new Date().toISOString(), purchaseId});
+            ledger.push({id: Date.now(), type: 'supplier_payment', amount, date: new Date().toISOString(), purchaseId: purchaseId || null, supplierId: supId});
             DB.set('ledger', ledger);
-            let purchases = DB.get('purchases') || [];
-            const idx = purchases.findIndex(p => p.id === purchaseId);
-            if(idx !== -1) { if(amount >= purchases[idx].totalCost) purchases[idx].payType = 'cash'; DB.set('purchases', purchases); }
+            
+            if (purchaseId) {
+                let purchases = DB.get('purchases') || [];
+                const pIdx = purchases.findIndex(p => p.id === purchaseId);
+                if(pIdx !== -1) { 
+                    if(amount >= purchases[pIdx].totalCost) purchases[pIdx].payType = 'cash'; 
+                    DB.set('purchases', purchases); 
+                }
+            }
+            closeModal(); renderLedger();
+        }
+
+        function openSupplierAdvanceModal() {
+            const suppliers = DB.get('suppliers') || [];
+            openModal(`
+                <h3 class="font-display font-bold mb-4">Supplier Advance Payment</h3>
+                <div class="space-y-3">
+                    <select id="advSupId" class="input-field">
+                        <option value="">Select Supplier</option>
+                        ${suppliers.map(s => `<option value="${s.id}">${s.name} (Bal: ${CURRENCY}${s.balance.toFixed(0)})</option>`).join('')}
+                    </select>
+                    <input type="number" id="advAmount" class="input-field" placeholder="Advance Amount">
+                    <button onclick="saveSupplierAdvance()" class="btn btn-primary w-full">Save</button>
+                </div>
+            `);
+        }
+
+        function saveSupplierAdvance() {
+            const supId = parseFloat(document.getElementById('advSupId').value);
+            const amount = parseFloat(document.getElementById('advAmount').value);
+            if(!supId || !amount || amount <= 0) return alert("Invalid input");
+            let suppliers = DB.get('suppliers');
+            const idx = suppliers.findIndex(s => s.id === supId);
+            if(idx !== -1) {
+                suppliers[idx].balance -= amount;
+                DB.set('suppliers', suppliers);
+            }
+            let ledger = DB.get('ledger') || [];
+            ledger.push({id: Date.now(), type: 'supplier_advance', amount, date: new Date().toISOString(), supplierId: supId});
+            DB.set('ledger', ledger);
             closeModal(); renderLedger();
         }
 
