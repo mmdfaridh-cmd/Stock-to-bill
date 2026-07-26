@@ -314,7 +314,7 @@
             if (!DB.get('suppliers')) DB.set('suppliers', [{ id: 1, name: 'ABC Wholesale', phone: '9123456780', address: 'Industrial Area', balance: 0 }]);
             if (!DB.get('transactions')) DB.set('transactions', []);
             if (!DB.get('ledger')) DB.set('ledger', []);
-            if (!DB.get('purchases')) DB.set('purchases', []); // Now stores full invoices: { id, invNo, supplierId, supplierName, date, payType, totalCost, items: [] }
+            if (!DB.get('purchases')) DB.set('purchases', []); 
             if (!DB.get('expenses')) DB.set('expenses', []);
             if (!DB.get('trash')) DB.set('trash', []);
             if (!DB.get('stockClosings')) DB.set('stockClosings', []);
@@ -327,7 +327,7 @@
         let cart = [];
         let currentUser = null;
         let html5QrcodeScanner = null;
-        let tempPurchaseItems = []; // For purchase invoice modal
+        let tempPurchaseItems = []; 
         
         function handleLogin() {
             const u = document.getElementById('loginUsername').value.trim();
@@ -484,7 +484,7 @@
             const todayExpenses = expenses.filter(e => new Date(e.date).toDateString() === today).reduce((a, e) => a + e.amount, 0);
             const todayReceived = ledger.filter(l => l.type === 'payment' && new Date(l.date).toDateString() === today).reduce((a, l) => a + l.amount, 0);
             
-            const todayCashPurchases = 0; // Simplified for now, invoices handle their own totals
+            const todayCashPurchases = 0; 
             purchases.forEach(p => {
                 if(new Date(p.date).toDateString() === today && p.payType === 'cash') {
                     todayCashPurchases += p.totalCost;
@@ -914,7 +914,7 @@
                     <div class="border-t pt-3">
                         <h4 class="font-bold mb-2 text-sm">Add Items to Invoice</h4>
                         <div class="grid grid-cols-12 gap-2 mb-2">
-                            <select id="purItemSelect" class="input-field col-span-6 text-xs">
+                            <select id="purItemSelect" class="input-field col-span-6 text-xs" onchange="onPurItemSelectChange()">
                                 <option value="">Select Item</option>
                                 ${items.map(i => `<option value="${i.id}" data-cost="${i.cost}">${i.name}</option>`).join('')}
                             </select>
@@ -940,6 +940,19 @@
                 </div>
             `);
             renderTempPurchaseItems();
+        }
+
+        function onPurItemSelectChange() {
+            const sel = document.getElementById('purItemSelect');
+            const costInput = document.getElementById('purItemCost');
+            if (sel.value) {
+                const cost = sel.options[sel.selectedIndex].getAttribute('data-cost');
+                costInput.value = cost || '';
+                costInput.focus();
+                costInput.select();
+            } else {
+                costInput.value = '';
+            }
         }
 
         function addTempPurchaseItem() {
