@@ -918,7 +918,7 @@
                         <h4 class="font-bold mb-2 text-sm">Add Items to Invoice</h4>
                         <div class="grid grid-cols-12 gap-2 mb-2">
                             <div class="col-span-6 relative">
-                                <input type="text" id="purItemSearch" class="input-field text-xs" placeholder="Search item..." oninput="searchPurItems()" onblur="setTimeout(() => document.getElementById('purItemResults').classList.add('hidden'), 200)" autocomplete="off">
+                                <input type="text" id="purItemSearch" class="input-field text-xs" placeholder="Search or type NEW item..." oninput="searchPurItems()" onblur="setTimeout(() => document.getElementById('purItemResults').classList.add('hidden'), 200)" autocomplete="off">
                                 <div id="purItemResults" class="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-32 overflow-y-auto z-50 hidden text-xs"></div>
                                 <input type="hidden" id="purItemSelect">
                             </div>
@@ -947,25 +947,84 @@
         }
 
         function searchPurItems() {
-            const q = document.getElementById('purItemSearch').value.toLowerCase();
+            const q = document.getElementById('purItemSearch').value.trim();
             const resultsDiv = document.getElementById('purItemResults');
             document.getElementById('purItemSelect').value = '';
             
+            if(!q) { resultsDiv.classList.add('hidden'); return; }
+
             const items = (DB.get('items') || []).sort((a, b) => a.name.localeCompare(b.name));
-            const filtered = items.filter(i => i.name.toLowerCase().includes(q) || (i.brand && i.brand.toLowerCase().includes(q)));
+            const filtered = items.filter(i => i.name.toLowerCase().includes(q.toLowerCase()) || (i.brand && i.brand.toLowerCase().includes(q.toLowerCase())));
             
+            let html = '';
+            
+            // Check if exact match exists
+            const exactMatch = items.some(i => i.name.toLowerCase() === q.toLowerCase());
+            if (!exactMatch) {
+                html += `<div onmousedown="createAndSelectNewItem('${q.replace(/'/g, "\\'")}')" class="p-2 hover:bg-gray-100 cursor-pointer text-[var(--success)] font-medium">+ Add new item: "${q}"</div>`;
+            }
+
             if(filtered.length > 0) {
-                resultsDiv.innerHTML = filtered.map(i => {
+                html += filtered.map(i => {
                     const catName = getCategoryName(i.categoryId);
                     return `<div onmousedown="selectPurItem(${i.id})" class="p-2 hover:bg-gray-100 cursor-pointer">
                         ${i.name} <span class="text-[var(--muted)] text-[10px]">(${catName})</span>
                     </div>`;
                 }).join('');
-                resultsDiv.classList.remove('hidden');
-            } else {
-                resultsDiv.innerHTML = `<div class="p-2 text-xs text-gray-500">No items found</div>`;
-                resultsDiv.classList.remove('hidden');
             }
+            
+            if(html === '') {
+                html = `<div class="p-2 text-xs text-gray-500">No items found</div>`;
+            }
+
+            resultsDiv.innerHTML = html;
+            resultsDiv.classList.remove('hidden');
+        }
+
+        function createAndSelectNewItem(name) {
+            name = name.trim();
+            if(!name) return;
+
+            const qty = parseInt(document.getElementById('purItemQty').value) || 1;
+            const cost = parseFloat(document.getElementById('purItemCost').value) || 0;
+
+            let items = DB.get('items') || [];
+            // Double check it doesn't exist
+            if(items.some(i => i.name.toLowerCase() === name.toLowerCase())) {
+                return alert("Item already exists!");
+            }
+
+            const newItem = {
+                id: Date.now(),
+                name: name,
+                code: '',
+                categoryId: null,
+                brand: '',
+                price: cost, // Default price to cost
+                mrp: 0,
+                cost: cost,
+                stock: 0, // Stock will be increased by purchase invoice logic
+                image: ''
+            };
+            items.push(newItem);
+            DB.set('items', items);
+
+            tempPurchaseItems.push({
+                itemId: newItem.id,
+                itemName: newItem.name,
+                qty: qty,
+                cost: cost,
+                totalCost: qty * cost
+            });
+
+            document.getElementById('purItemSearch').value = '';
+            document.getElementById('purItemSelect').value = '';
+            document.getElementById('purItemQty').value = '1';
+            document.getElementById('purItemCost').value = '';
+            document.getElementById('purItemResults').classList.add('hidden');
+            renderTempPurchaseItems();
+            document.getElementById('purInvTotalDisplay').textContent = CURRENCY + calculateTempPurchaseTotal();
+            document.getElementById('purItemSearch').focus(); // Focus back for next item
         }
 
         function selectPurItem(id) {
@@ -1169,7 +1228,7 @@
             const returns = DB.get('returnsLosses') || [];
             document.getElementById('pageContent').innerHTML = `
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-display font-bold text-lg">Returns & Losses</h3>
+                    <h3 class="font-display font-bold mb-4">Returns & Losses</h3>
                     <button onclick="openReturnModal()" class="btn btn-primary">Add Return/Loss</button>
                 </div>
                 <div class="card">
