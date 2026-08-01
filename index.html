@@ -894,7 +894,10 @@
                         </div>
                         <div class="flex gap-2 mb-3">
                             <input type="text" id="purScanInput" class="input-field flex-1" placeholder="Search item..." onkeydown="handlePurScanKey(event)" oninput="filterPurItems()">
-                            <button onclick="openCameraScanner('purchase')" class="btn btn-secondary p-3">
+                            <button onclick="openQuickPurItemModal()" class="btn btn-success p-3" title="Add New Item">
+                                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                            </button>
+                            <button onclick="openCameraScanner('purchase')" class="btn btn-secondary p-3" title="Scan Barcode">
                                 <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812-1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3"/></svg>
                             </button>
                         </div>
@@ -939,6 +942,62 @@
             `;
             filterPurItems();
             renderTempPurchaseItems();
+        }
+
+        function openQuickPurItemModal() {
+            openModal(`
+                <h3 class="font-display font-bold mb-4">Quick Add Item</h3>
+                <div class="space-y-3">
+                    <input type="text" id="quickItemName" class="input-field" placeholder="Item Name" autofocus>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="number" id="quickItemCost" class="input-field" placeholder="Purchase Cost">
+                        <input type="number" id="quickItemQty" class="input-field" placeholder="Qty" value="1">
+                    </div>
+                    <button onclick="saveQuickPurItem()" class="btn btn-primary w-full">Add to Invoice</button>
+                </div>
+            `);
+        }
+
+        function saveQuickPurItem() {
+            const name = document.getElementById('quickItemName').value.trim();
+            const cost = parseFloat(document.getElementById('quickItemCost').value) || 0;
+            const qty = parseInt(document.getElementById('quickItemQty').value) || 1;
+            
+            if(!name) return alert("Name is required");
+            
+            let items = DB.get('items') || [];
+            if(items.some(i => i.name.toLowerCase() === name.toLowerCase())) {
+                return alert("Item already exists. Please search for it instead.");
+            }
+            
+            const newItem = {
+                id: Date.now(),
+                name: name,
+                code: '',
+                categoryId: null,
+                brand: '',
+                price: cost, // Default selling price to purchase cost
+                mrp: 0,
+                cost: cost,
+                stock: 0, // Stock will be increased by the invoice logic
+                image: ''
+            };
+            items.push(newItem);
+            DB.set('items', items);
+            
+            // Add to temp purchase items
+            tempPurchaseItems.push({
+                itemId: newItem.id,
+                itemName: newItem.name,
+                qty: qty,
+                cost: cost,
+                totalCost: qty * cost
+            });
+            
+            closeModal();
+            filterPurItems();
+            renderTempPurchaseItems();
+            playBeep();
         }
 
         function handlePurScanKey(e) { if (e.key === 'Enter') { e.preventDefault(); const val = document.getElementById('purScanInput').value.trim(); if(!val) return; const items = DB.get('items') || []; const found = items.find(i => i.name.toLowerCase() === val.toLowerCase() || (i.code && i.code.toLowerCase() === val.toLowerCase())); if (found) { addTempPurchaseItem(found.id); document.getElementById('purScanInput').value = ''; } else { filterPurItems(); } } }
