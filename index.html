@@ -112,7 +112,7 @@
         
         .print-container {
             width: 100%;
-            background: white;
+            background: white,
             box-shadow: 0 10px 25px rgba(0,0,0,0.2);
             position: relative;
             display: flex; flex-direction: column;
@@ -894,9 +894,6 @@
                         </div>
                         <div class="flex gap-2 mb-3">
                             <input type="text" id="purScanInput" class="input-field flex-1" placeholder="Search item..." onkeydown="handlePurScanKey(event)" oninput="filterPurItems()">
-                            <button onclick="openQuickPurItemModal()" class="btn btn-success p-3" title="Add New Item">
-                                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-                            </button>
                             <button onclick="openCameraScanner('purchase')" class="btn btn-secondary p-3" title="Scan Barcode">
                                 <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812-1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3"/></svg>
                             </button>
@@ -1005,7 +1002,16 @@
         function filterPurItems() { 
             const q = (document.getElementById('purScanInput')?.value || '').toLowerCase(); 
             const items = (DB.get('items') || []).filter(i => i.name.toLowerCase().includes(q) || (i.code && i.code.toLowerCase().includes(q))).sort((a, b) => a.name.localeCompare(b.name)); 
-            document.getElementById('purBillItems').innerHTML = items.map(i => `
+
+            // New Item Card Button
+            const newItemCard = `
+                <div class="bg-[var(--bg)] border-2 border-dashed border-[var(--success)] rounded-lg overflow-hidden cursor-pointer flex flex-col items-center justify-center text-center p-2 hover:bg-[var(--accent-dim)] active:scale-95 transition-all" onclick="openQuickPurItemModal()" style="min-height: 90px;">
+                    <svg width="28" height="28" fill="none" stroke="#198754" stroke-width="2" class="mb-1"><path d="M12 5v14M5 12h14"/></svg>
+                    <span class="text-xs font-medium text-[var(--success)]">New Item</span>
+                </div>
+            `;
+
+            const itemCards = items.map(i => `
                 <div class="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden cursor-pointer active:scale-95 transition-all" onclick="addTempPurchaseItem(${i.id})">
                     ${i.image ? `<img src="${i.image}" class="bill-item-img">` : '<div class="bill-item-img flex items-center justify-center text-[var(--muted)] text-xs">No Img</div>'}
                     <div class="p-2">
@@ -1016,7 +1022,10 @@
                         </div>
                     </div>
                 </div>
-            `).join(''); 
+            `).join('');
+
+            // Prepend the New Item card to the grid
+            document.getElementById('purBillItems').innerHTML = newItemCard + itemCards;
         }
 
         function addTempPurchaseItem(id) {
