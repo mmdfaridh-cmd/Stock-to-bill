@@ -846,13 +846,13 @@
             renderSuppliers();
         }
 
-        // ===== PURCHASES (INVOICE SYSTEM) =====
+        // ===== PURCHASES (INVOICE SYSTEM - NEW LAYOUT) =====
         function renderPurchases() { 
             const purchases = DB.get('purchases') || []; 
             document.getElementById('pageContent').innerHTML = `
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="font-display font-bold text-lg">Purchase Invoices</h3>
-                    <button onclick="openPurchaseInvoiceModal()" class="btn btn-primary">Add Purchase Invoice</button>
+                    <button onclick="renderPurchaseEditor()" class="btn btn-primary">Add Purchase Invoice</button>
                 </div>
                 <div class="card">
                     <div class="space-y-2">
@@ -868,7 +868,7 @@
                                 <div class="flex items-center gap-2">
                                     <p class="font-display font-bold">${CURRENCY}${p.totalCost.toFixed(0)}</p>
                                     <button onclick="viewPurchaseInvoice(${p.id})" class="btn btn-secondary text-xs py-1 px-2">View</button>
-                                    <button onclick="openPurchaseInvoiceModal(${p.id})" class="btn btn-success text-xs py-1 px-2">Edit</button>
+                                    <button onclick="renderPurchaseEditor(${p.id})" class="btn btn-success text-xs py-1 px-2">Edit</button>
                                     <button onclick="deletePurchaseInvoice(${p.id})" class="btn btn-danger text-xs py-1 px-2">Del</button>
                                 </div>
                             </div>
@@ -877,76 +877,147 @@
                 </div>`; 
         }
 
-        function openPurchaseInvoiceModal(editId = null) {
+        function renderPurchaseEditor(editId = null) {
             const settings = DB.get('settings');
-            if(editId && settings.isStoreClosed) { alert("Store is closed. Reopen store from Stock Closing to edit purchases."); return; }
+            if(editId && settings.isStoreClosed) { alert("Store is closed. Reopen store from Stock Closing to edit purchases."); showPage('purchases'); return; }
 
-            const items = DB.get('items') || [];
-            const suppliers = DB.get('suppliers') || [];
             const p = editId ? (DB.get('purchases') || []).find(x => x.id == editId) : null;
-            
-            // Clone items for editing
             tempPurchaseItems = p ? p.items.map(i => ({...i})) : [];
             const invNo = p ? p.invNo : `PINV-${settings.nextPurchaseInvId || 1}`;
             
-            renderPurchaseInvoiceModalUI(p, suppliers, invNo);
-        }
-
-        function renderPurchaseInvoiceModalUI(p, suppliers, invNo) {
-            openModal(`
-                <h3 class="font-display font-bold mb-4">${p ? 'Edit' : 'Record'} Purchase Invoice</h3>
-                <div class="space-y-3">
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="text-xs text-[var(--muted)]">Invoice No</label>
-                            <input type="text" id="purInvNo" class="input-field" value="${invNo}" readonly>
+            document.getElementById('pageContent').innerHTML = `
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div class="lg:col-span-2">
+                        <div class="flex justify-between items-center mb-4">
+                            <button onclick="showPage('purchases')" class="btn btn-secondary text-sm py-2 px-4">&larr; Back to Purchases</button>
+                            <h3 class="font-display text-lg font-bold">${p ? 'Edit' : 'New'} Purchase Invoice</h3>
                         </div>
-                        <div>
-                            <label class="text-xs text-[var(--muted)]">Date</label>
-                            <input type="date" id="purInvDate" class="input-field" value="${p ? new Date(p.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}">
-                        </div>
-                    </div>
-
-                    <div class="relative mb-2">
-                        <label class="text-xs text-[var(--muted)]">Supplier</label>
-                        <input type="text" id="purInvSupplier" class="input-field" placeholder="Search supplier..." oninput="searchPurSupplier()" onblur="setTimeout(() => { document.getElementById('purSupResults').classList.add('hidden'); }, 200)" autocomplete="off" value="${p && p.supplierName ? p.supplierName : ''}">
-                        <div id="purSupResults" class="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-32 overflow-y-auto z-50 hidden"></div>
-                        <input type="hidden" id="purInvSupplierId" value="${p && p.supplierId ? p.supplierId : ''}">
-                    </div>
-
-                    <div class="border-t pt-3">
-                        <h4 class="font-bold mb-2 text-sm">Add Items to Invoice</h4>
-                        <div class="grid grid-cols-12 gap-2 mb-2">
-                            <div class="col-span-5 relative">
-                                <input type="text" id="purItemSearch" class="input-field text-xs" placeholder="Search or type NEW item..." oninput="searchPurItems()" onblur="setTimeout(() => document.getElementById('purItemResults').classList.add('hidden'), 200)" autocomplete="off">
-                                <div id="purItemResults" class="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-32 overflow-y-auto z-50 hidden text-xs"></div>
-                                <input type="hidden" id="purItemSelect">
-                            </div>
-                            <input type="number" id="purItemQty" class="input-field col-span-2 text-xs" placeholder="Qty" value="1">
-                            <input type="number" id="purItemCost" class="input-field col-span-3 text-xs" placeholder="Cost">
-                            <button onclick="addTempPurchaseItem()" class="btn btn-primary col-span-1 text-xs px-2">+</button>
-                            <button onclick="openCameraScanner('purchase')" class="btn btn-secondary col-span-1 text-xs p-0 flex items-center justify-center">
-                                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812-1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3"/></svg>
+                        <div class="flex gap-2 mb-3">
+                            <input type="text" id="purScanInput" class="input-field flex-1" placeholder="Search item..." onkeydown="handlePurScanKey(event)" oninput="filterPurItems()">
+                            <button onclick="openCameraScanner('purchase')" class="btn btn-secondary p-3">
+                                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812-1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3"/></svg>
                             </button>
                         </div>
-                        <div id="tempPurItemsList" class="space-y-2 max-h-40 overflow-y-auto"></div>
+                        <div class="grid grid-cols-3 sm:grid-cols-4 gap-2" id="purBillItems"></div>
                     </div>
+                    <div class="card sticky top-20 h-fit">
+                        <div class="grid grid-cols-2 gap-3 mb-3">
+                            <div>
+                                <label class="text-xs text-[var(--muted)]">Invoice No</label>
+                                <input type="text" id="purInvNo" class="input-field" value="${invNo}" readonly>
+                            </div>
+                            <div>
+                                <label class="text-xs text-[var(--muted)]">Date</label>
+                                <input type="date" id="purInvDate" class="input-field" value="${p ? new Date(p.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}">
+                            </div>
+                        </div>
+                        
+                        <div class="relative mb-3">
+                            <label class="text-xs text-[var(--muted)]">Supplier</label>
+                            <input type="text" id="purInvSupplier" class="input-field" placeholder="Search supplier..." oninput="searchPurSupplier()" onblur="setTimeout(() => { document.getElementById('purSupResults').classList.add('hidden'); }, 200)" autocomplete="off" value="${p && p.supplierName ? p.supplierName : ''}">
+                            <div id="purSupResults" class="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-32 overflow-y-auto z-50 hidden"></div>
+                            <input type="hidden" id="purInvSupplierId" value="${p && p.supplierId ? p.supplierId : ''}">
+                        </div>
 
-                    <div class="bg-[var(--bg)] p-2 rounded-lg flex justify-between items-center mt-3">
-                        <span class="text-sm text-[var(--muted)]">Invoice Total:</span>
-                        <span id="purInvTotalDisplay" class="font-bold">${CURRENCY}${calculateTempPurchaseTotal()}</span>
+                        <h3 class="font-display font-bold mb-2">Items</h3>
+                        <div class="space-y-2 max-h-64 overflow-y-auto mb-3" id="purCartDiv"></div>
+
+                        <div class="bg-[var(--bg)] p-2 rounded-lg flex justify-between items-center mt-3 mb-3">
+                            <span class="text-sm text-[var(--muted)]">Invoice Total:</span>
+                            <span id="purInvTotalDisplay" class="font-bold"></span>
+                        </div>
+
+                        <select id="purInvPayType" class="input-field mb-3">
+                            <option value="cash" ${p && p.payType === 'cash' ? 'selected' : ''}>Cash (Paid)</option>
+                            <option value="credit" ${p && p.payType === 'credit' ? 'selected' : ''}>Credit (Due)</option>
+                        </select>
+                        
+                        <input type="hidden" id="editPurInvId" value="${p ? p.id : ''}">
+                        <button onclick="savePurchaseInvoice()" class="btn btn-primary w-full font-bold">SAVE INVOICE</button>
                     </div>
-
-                    <select id="purInvPayType" class="input-field">
-                        <option value="cash" ${p && p.payType === 'cash' ? 'selected' : ''}>Cash (Paid)</option>
-                        <option value="credit" ${p && p.payType === 'credit' ? 'selected' : ''}>Credit (Due)</option>
-                    </select>
-                    
-                    <input type="hidden" id="editPurInvId" value="${p ? p.id : ''}">
-                    <button onclick="savePurchaseInvoice()" class="btn btn-primary w-full">Save Invoice</button>
                 </div>
-            `);
+            `;
+            filterPurItems();
             renderTempPurchaseItems();
+        }
+
+        function handlePurScanKey(e) { if (e.key === 'Enter') { e.preventDefault(); const val = document.getElementById('purScanInput').value.trim(); if(!val) return; const items = DB.get('items') || []; const found = items.find(i => i.name.toLowerCase() === val.toLowerCase() || (i.code && i.code.toLowerCase() === val.toLowerCase())); if (found) { addTempPurchaseItem(found.id); document.getElementById('purScanInput').value = ''; } else { filterPurItems(); } } }
+
+        function filterPurItems() { 
+            const q = (document.getElementById('purScanInput')?.value || '').toLowerCase(); 
+            const items = (DB.get('items') || []).filter(i => i.name.toLowerCase().includes(q) || (i.code && i.code.toLowerCase().includes(q))).sort((a, b) => a.name.localeCompare(b.name)); 
+            document.getElementById('purBillItems').innerHTML = items.map(i => `
+                <div class="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden cursor-pointer active:scale-95 transition-all" onclick="addTempPurchaseItem(${i.id})">
+                    <div class="p-2">
+                        <p class="text-xs font-medium truncate">${i.name}</p>
+                        <div class="flex justify-between items-center mt-1">
+                            <p class="text-[var(--accent)] font-bold text-sm">Cost: ${CURRENCY}${i.cost}</p>
+                            <span class="text-[var(--muted)] text-xs">Stk: ${i.stock}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join(''); 
+        }
+
+        function addTempPurchaseItem(id) {
+            const item = (DB.get('items')||[]).find(i=>i.id===id); 
+            if(!item) return; 
+            const exist = tempPurchaseItems.find(t => t.itemId === id); 
+            if(exist) { 
+                exist.qty += 1; 
+                exist.totalCost = exist.qty * exist.cost; 
+            } else { 
+                tempPurchaseItems.push({
+                    itemId: item.id,
+                    itemName: item.name,
+                    qty: 1,
+                    cost: item.cost,
+                    totalCost: 1 * item.cost
+                });
+            } 
+            playBeep(); 
+            renderTempPurchaseItems(); 
+        }
+
+        function updatePurCartItem(idx, field, val) {
+            const item = tempPurchaseItems[idx];
+            if(!item) return;
+            if(field === 'qty') item.qty = parseInt(val) || 1;
+            if(field === 'cost') item.cost = parseFloat(val) || 0;
+            item.totalCost = item.qty * item.cost;
+            renderTempPurchaseItems();
+        }
+
+        function renderTempPurchaseItems() {
+            const listDiv = document.getElementById('purCartDiv');
+            if(!listDiv) return;
+            if(tempPurchaseItems.length === 0) {
+                listDiv.innerHTML = '<p class="text-[var(--muted)] text-center py-4 text-sm">No items added</p>';
+            } else {
+                listDiv.innerHTML = tempPurchaseItems.map((it, idx) => `
+                    <div class="p-2 bg-[var(--bg)] rounded-lg text-xs">
+                        <div class="flex justify-between items-center mb-1">
+                            <p class="font-medium truncate flex-1">${it.itemName}</p>
+                            <button onclick="removeTempPurchaseItem(${idx})" class="text-[var(--danger)] ml-2 font-bold">x</button>
+                        </div>
+                        <div class="flex items-center gap-2 mt-1 text-[10px] text-[var(--muted)] border-b border-dashed border-[var(--border)] pb-1 mb-1">
+                            <span>Qty: <input type="number" class="cart-input inline-block h-5" value="${it.qty}" onchange="updatePurCartItem(${idx}, 'qty', this.value)" style="width: 40px;"></span>
+                            <span>Cost: <input type="number" class="cart-input inline-block h-5" value="${it.cost}" onchange="updatePurCartItem(${idx}, 'cost', this.value)" style="width: 60px;"></span>
+                            <span class="text-[var(--fg)] font-bold">= ${CURRENCY}${it.totalCost.toFixed(0)}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            document.getElementById('purInvTotalDisplay').textContent = CURRENCY + calculateTempPurchaseTotal();
+        }
+
+        function removeTempPurchaseItem(idx) {
+            tempPurchaseItems.splice(idx, 1);
+            renderTempPurchaseItems();
+        }
+
+        function calculateTempPurchaseTotal() {
+            return tempPurchaseItems.reduce((a, b) => a + b.totalCost, 0).toFixed(0);
         }
 
         function searchPurSupplier() {
@@ -973,150 +1044,6 @@
                 document.getElementById('purInvSupplier').value = s.name;
             }
             document.getElementById('purSupResults').classList.add('hidden');
-        }
-
-        function searchPurItems() {
-            const q = document.getElementById('purItemSearch').value.trim();
-            const resultsDiv = document.getElementById('purItemResults');
-            document.getElementById('purItemSelect').value = '';
-            
-            if(!q) { resultsDiv.classList.add('hidden'); return; }
-
-            const items = (DB.get('items') || []).sort((a, b) => a.name.localeCompare(b.name));
-            const filtered = items.filter(i => i.name.toLowerCase().includes(q.toLowerCase()) || (i.brand && i.brand.toLowerCase().includes(q.toLowerCase())));
-            
-            let html = '';
-            
-            // Check if exact match exists
-            const exactMatch = items.some(i => i.name.toLowerCase() === q.toLowerCase());
-            if (!exactMatch) {
-                html += `<div onmousedown="createAndSelectNewItem('${q.replace(/'/g, "\\'")}')" class="p-2 hover:bg-gray-100 cursor-pointer text-[var(--success)] font-medium">+ Add new item: "${q}"</div>`;
-            }
-
-            if(filtered.length > 0) {
-                html += filtered.map(i => {
-                    const catName = getCategoryName(i.categoryId);
-                    return `<div onmousedown="selectPurItem(${i.id})" class="p-2 hover:bg-gray-100 cursor-pointer">
-                        ${i.name} <span class="text-[var(--muted)] text-[10px]">(${catName})</span>
-                    </div>`;
-                }).join('');
-            }
-            
-            if(html === '') {
-                html = `<div class="p-2 text-xs text-gray-500">No items found</div>`;
-            }
-
-            resultsDiv.innerHTML = html;
-            resultsDiv.classList.remove('hidden');
-        }
-
-        function createAndSelectNewItem(name) {
-            name = name.trim();
-            if(!name) return;
-
-            const qty = parseInt(document.getElementById('purItemQty').value) || 1;
-            const cost = parseFloat(document.getElementById('purItemCost').value) || 0;
-
-            let items = DB.get('items') || [];
-            if(items.some(i => i.name.toLowerCase() === name.toLowerCase())) {
-                return alert("Item already exists!");
-            }
-
-            const newItem = {
-                id: Date.now(),
-                name: name,
-                code: '',
-                categoryId: null,
-                brand: '',
-                price: cost, 
-                mrp: 0,
-                cost: cost,
-                stock: 0, 
-                image: ''
-            };
-            items.push(newItem);
-            DB.set('items', items);
-
-            tempPurchaseItems.push({
-                itemId: newItem.id,
-                itemName: newItem.name,
-                qty: qty,
-                cost: cost,
-                totalCost: qty * cost
-            });
-
-            document.getElementById('purItemSearch').value = '';
-            document.getElementById('purItemSelect').value = '';
-            document.getElementById('purItemQty').value = '1';
-            document.getElementById('purItemCost').value = '';
-            document.getElementById('purItemResults').classList.add('hidden');
-            renderTempPurchaseItems();
-            document.getElementById('purInvTotalDisplay').textContent = CURRENCY + calculateTempPurchaseTotal();
-            document.getElementById('purItemSearch').focus(); 
-        }
-
-        function selectPurItem(id) {
-            const item = (DB.get('items') || []).find(i => i.id === id);
-            if(!item) return;
-            document.getElementById('purItemSelect').value = id;
-            const catName = getCategoryName(item.categoryId);
-            document.getElementById('purItemSearch').value = `${item.name} (${catName})`;
-            document.getElementById('purItemResults').classList.add('hidden');
-            
-            const costInput = document.getElementById('purItemCost');
-            costInput.value = item.cost || '';
-            costInput.focus();
-            costInput.select();
-        }
-
-        function addTempPurchaseItem() {
-            const itemId = parseInt(document.getElementById('purItemSelect').value);
-            const qty = parseInt(document.getElementById('purItemQty').value);
-            const cost = parseFloat(document.getElementById('purItemCost').value);
-            
-            if(!itemId || !qty || !cost) return alert('Select item, qty and cost');
-            const item = (DB.get('items')||[]).find(i => i.id === itemId);
-            if(!item) return;
-            
-            tempPurchaseItems.push({
-                itemId, itemName: item.name, qty, cost, totalCost: qty * cost
-            });
-            
-            document.getElementById('purItemSearch').value = '';
-            document.getElementById('purItemSelect').value = '';
-            document.getElementById('purItemQty').value = '1';
-            document.getElementById('purItemCost').value = '';
-            renderTempPurchaseItems();
-            document.getElementById('purInvTotalDisplay').textContent = CURRENCY + calculateTempPurchaseTotal();
-            document.getElementById('purItemSearch').focus(); 
-        }
-
-        function renderTempPurchaseItems() {
-            const listDiv = document.getElementById('tempPurItemsList');
-            if(!listDiv) return;
-            if(tempPurchaseItems.length === 0) {
-                listDiv.innerHTML = '<p class="text-xs text-[var(--muted)] text-center py-2">No items added</p>';
-                return;
-            }
-            listDiv.innerHTML = tempPurchaseItems.map((it, idx) => `
-                <div class="flex justify-between items-center p-2 bg-[var(--bg)] rounded text-xs">
-                    <span>${it.itemName} <br> <span class="text-[var(--muted)]">${it.qty} x ${CURRENCY}${it.cost}</span></span>
-                    <div class="flex items-center gap-2">
-                        <span class="font-bold">${CURRENCY}${it.totalCost.toFixed(0)}</span>
-                        <button onclick="removeTempPurchaseItem(${idx})" class="text-[var(--danger)] font-bold">x</button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function removeTempPurchaseItem(idx) {
-            tempPurchaseItems.splice(idx, 1);
-            renderTempPurchaseItems();
-            document.getElementById('purInvTotalDisplay').textContent = CURRENCY + calculateTempPurchaseTotal();
-        }
-
-        function calculateTempPurchaseTotal() {
-            return tempPurchaseItems.reduce((a, b) => a + b.totalCost, 0).toFixed(0);
         }
 
         function savePurchaseInvoice() {
@@ -1198,8 +1125,7 @@
             DB.set('priceHistory', priceHistory);
             DB.set('settings', settings);
             tempPurchaseItems = [];
-            closeModal(); 
-            renderPurchases(); 
+            showPage('purchases'); 
         }
 
         function viewPurchaseInvoice(id) {
@@ -1521,21 +1447,7 @@
             const found = items.find(i => i.code && i.code.toLowerCase() === decodedText.toLowerCase()); 
             if (found) {
                 if (scanTarget === 'purchase') {
-                    const existing = tempPurchaseItems.find(t => t.itemId === found.id);
-                    if (existing) {
-                        existing.qty += 1;
-                        existing.totalCost = existing.qty * existing.cost;
-                    } else {
-                        tempPurchaseItems.push({
-                            itemId: found.id,
-                            itemName: found.name,
-                            qty: 1,
-                            cost: found.cost,
-                            totalCost: 1 * found.cost
-                        });
-                    }
-                    renderTempPurchaseItems();
-                    document.getElementById('purInvTotalDisplay').textContent = CURRENCY + calculateTempPurchaseTotal();
+                    addTempPurchaseItem(found.id);
                     playBeep();
                 } else {
                     addToCart(found.id); 
@@ -2302,7 +2214,7 @@
         function viewSupplierLedger(supId) { 
             const supplier = (DB.get('suppliers')||[]).find(s => s.id === supId); 
             const purchases = (DB.get('purchases')||[]).filter(p => p.supplierId === supId);
-            const payments = (DB.get('ledger')||[]).filter(l => l.supplierId === supId && l.type === 'supplier_payment');
+            const payments = (DB.get('ledger')||[]).filter(l => l.supplierId === supId && (l.type === 'supplier_payment' || l.type === 'supplier_advance'));
             
             const history = [
                 ...purchases.map(p => ({ date: p.date, desc: `Purchase Inv: ${p.invNo}`, amount: p.totalCost, type: 'debit', refId: p.id, refType: 'purchase' })), 
@@ -2323,7 +2235,7 @@
                                 <p class="font-bold ${h.type === 'credit' ? 'text-[var(--accent)]' : 'text-[var(--danger)]'}">
                                     ${h.type === 'credit' ? '-' : '+'} ${CURRENCY}${h.amount.toFixed(0)}
                                 </p>
-                                ${h.refType === 'purchase' ? `<button onclick="closeModal(); openPurchaseInvoiceModal(${h.refId})" class="btn btn-secondary text-xs py-1 px-2">Edit</button>` : ''}
+                                ${h.refType === 'purchase' ? `<button onclick="closeModal(); renderPurchaseEditor(${h.refId})" class="btn btn-secondary text-xs py-1 px-2">Edit</button>` : ''}
                             </div>
                         </div>
                     `).join('') || '<p class="text-center text-[var(--muted)] py-4">No history found.</p>'}
