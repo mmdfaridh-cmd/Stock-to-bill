@@ -112,7 +112,7 @@
         
         .print-container {
             width: 100%;
-            background: white,
+            background: white;
             box-shadow: 0 10px 25px rgba(0,0,0,0.2);
             position: relative;
             display: flex; flex-direction: column;
@@ -137,7 +137,7 @@
             padding: 12px 16px;
             border-bottom: 1px solid #eee;
             display: flex;
-            flex-direction: column;
+            flex-direction: column,
             gap: 8px;
             z-index: 10;
         }
@@ -946,10 +946,12 @@
                 <h3 class="font-display font-bold mb-4">Quick Add Item</h3>
                 <div class="space-y-3">
                     <input type="text" id="quickItemName" class="input-field" placeholder="Item Name" autofocus>
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-3 gap-3">
                         <input type="number" id="quickItemCost" class="input-field" placeholder="Purchase Cost">
-                        <input type="number" id="quickItemQty" class="input-field" placeholder="Qty" value="1">
+                        <input type="number" id="quickItemPrice" class="input-field" placeholder="Sale Price">
+                        <input type="number" id="quickItemMrp" class="input-field" placeholder="MRP">
                     </div>
+                    <input type="number" id="quickItemQty" class="input-field" placeholder="Quantity" value="1">
                     <button onclick="saveQuickPurItem()" class="btn btn-primary w-full">Add to Invoice</button>
                 </div>
             `);
@@ -958,6 +960,8 @@
         function saveQuickPurItem() {
             const name = document.getElementById('quickItemName').value.trim();
             const cost = parseFloat(document.getElementById('quickItemCost').value) || 0;
+            const price = parseFloat(document.getElementById('quickItemPrice').value) || cost; // Default to cost if not provided
+            const mrp = parseFloat(document.getElementById('quickItemMrp').value) || price; // Default to price if not provided
             const qty = parseInt(document.getElementById('quickItemQty').value) || 1;
             
             if(!name) return alert("Name is required");
@@ -973,8 +977,8 @@
                 code: '',
                 categoryId: null,
                 brand: '',
-                price: cost, // Default selling price to purchase cost
-                mrp: 0,
+                price: price, 
+                mrp: mrp,
                 cost: cost,
                 stock: 0, // Stock will be increased by the invoice logic
                 image: ''
@@ -987,7 +991,7 @@
                 itemId: newItem.id,
                 itemName: newItem.name,
                 qty: qty,
-                cost: cost,
+                cost: cost, // Use the specific purchase cost for this invoice line
                 totalCost: qty * cost
             });
             
@@ -1066,7 +1070,7 @@
                 listDiv.innerHTML = tempPurchaseItems.map((it, idx) => `
                     <div class="p-2 bg-[var(--bg)] rounded-lg text-xs">
                         <div class="flex justify-between items-center mb-1">
-                            <p class="font-medium truncate flex-1">${it.itemName}</p>
+                            <p class="font-medium truncate flex-1">${idx + 1}. ${it.itemName}</p>
                             <button onclick="removeTempPurchaseItem(${idx})" class="text-[var(--danger)] ml-2 font-bold">x</button>
                         </div>
                         <div class="flex items-center gap-2 mt-1 text-[10px] text-[var(--muted)] border-b border-dashed border-[var(--border)] pb-1 mb-1">
@@ -1205,11 +1209,11 @@
                 <p class="text-xs text-[var(--muted)] mb-4">${new Date(p.date).toLocaleString()} | Supplier: ${p.supplierName} | Type: ${p.payType}</p>
                 <div class="max-h-64 overflow-y-auto">
                     <table class="w-full text-xs">
-                        <thead><tr class="border-b"><th class="text-left py-1">Item</th><th class="text-right">Qty</th><th class="text-right">Cost</th><th class="text-right">Total</th></tr></thead>
+                        <thead><tr class="border-b"><th class="text-center py-1">#</th><th class="text-left">Item</th><th class="text-right">Qty</th><th class="text-right">Cost</th><th class="text-right">Total</th></tr></thead>
                         <tbody>
-                            ${p.items.map(i => `<tr class="border-b"><td class="py-1">${i.itemName}</td><td class="text-right">${i.qty}</td><td class="text-right">${CURRENCY}${i.cost.toFixed(0)}</td><td class="text-right">${CURRENCY}${i.totalCost.toFixed(0)}</td></tr>`).join('')}
+                            ${p.items.map((i, idx) => `<tr class="border-b"><td align="center">${idx + 1}</td><td class="py-1">${i.itemName}</td><td class="text-right">${i.qty}</td><td class="text-right">${CURRENCY}${i.cost.toFixed(0)}</td><td class="text-right">${CURRENCY}${i.totalCost.toFixed(0)}</td></tr>`).join('')}
                         </tbody>
-                        <tfoot><tr class="font-bold border-t-2 border-[var(--border)]"><td colspan="3" class="py-1 text-right">Grand Total:</td><td class="text-right">${CURRENCY}${p.totalCost.toFixed(0)}</td></tr></tfoot>
+                        <tfoot><tr class="font-bold border-t-2 border-[var(--border)]"><td colspan="4" class="py-1 text-right">Grand Total:</td><td class="text-right">${CURRENCY}${p.totalCost.toFixed(0)}</td></tr></tfoot>
                     </table>
                 </div>
                 <button onclick="closeModal()" class="btn btn-secondary w-full mt-4">Close</button>
@@ -1596,7 +1600,7 @@
             let totalSellingValue = 0;
             let itemDiscountTotal = 0;
             
-            const cartHtml = cart.map(i => {
+            const cartHtml = cart.map((i, idx) => {
                 if (i.defaultPrice > i.sellPrice) {
                     totalDefaultPrice += i.defaultPrice * i.qty;
                     itemDiscountTotal += (i.defaultPrice - i.sellPrice) * i.qty;
@@ -1608,7 +1612,7 @@
                 let itemDiscPercent = 0;
                 if(i.defaultPrice > 0 && i.defaultPrice > i.sellPrice) itemDiscPercent = ((i.defaultPrice - i.sellPrice) / i.defaultPrice) * 100;
                 
-                return `<div class="p-2 bg-[var(--bg)] rounded-lg text-xs"><div class="flex justify-between items-center mb-1"><p class="font-medium truncate flex-1">${i.name}</p><button onclick="removeFromCart(${i.id})" class="text-[var(--danger)] ml-2 font-bold">x</button></div><div class="flex items-center gap-2 mt-1 text-[10px] text-[var(--muted)] border-b border-dashed border-[var(--border)] pb-1 mb-1"><span>Price: ${i.defaultPrice}</span><span>Rate: <input type="number" class="cart-input inline-block h-5" value="${i.sellPrice}" onchange="updateRateFromPrice(${i.id}, this.value)"></span><span class="text-[var(--success)] font-bold">${itemDiscPercent > 0 ? itemDiscPercent.toFixed(1) + '%' : ''}</span></div><div class="flex items-center justify-between"><div class="flex items-center gap-1 border rounded px-1"><button onclick="updCart(${i.id},-1)" class="text-[var(--fg)] hover:text-[var(--accent)] font-bold h-5 leading-none">-</button><span class="w-4 text-center font-bold text-[var(--fg)]">${i.qty}</span><button onclick="updCart(${i.id},1)" class="text-[var(--fg)] hover:text-[var(--accent)] font-bold h-5 leading-none">+</button></div><span class="font-bold text-[var(--fg)]">${CURRENCY}${(i.sellPrice*i.qty).toFixed(0)}</span></div></div>`;
+                return `<div class="p-2 bg-[var(--bg)] rounded-lg text-xs"><div class="flex justify-between items-center mb-1"><p class="font-medium truncate flex-1">${idx + 1}. ${i.name}</p><button onclick="removeFromCart(${i.id})" class="text-[var(--danger)] ml-2 font-bold">x</button></div><div class="flex items-center gap-2 mt-1 text-[10px] text-[var(--muted)] border-b border-dashed border-[var(--border)] pb-1 mb-1"><span>Price: ${i.defaultPrice}</span><span>Rate: <input type="number" class="cart-input inline-block h-5" value="${i.sellPrice}" onchange="updateRateFromPrice(${i.id}, this.value)"></span><span class="text-[var(--success)] font-bold">${itemDiscPercent > 0 ? itemDiscPercent.toFixed(1) + '%' : ''}</span></div><div class="flex items-center justify-between"><div class="flex items-center gap-1 border rounded px-1"><button onclick="updCart(${i.id},-1)" class="text-[var(--fg)] hover:text-[var(--accent)] font-bold h-5 leading-none">-</button><span class="w-4 text-center font-bold text-[var(--fg)]">${i.qty}</span><button onclick="updCart(${i.id},1)" class="text-[var(--fg)] hover:text-[var(--accent)] font-bold h-5 leading-none">+</button></div><span class="font-bold text-[var(--fg)]">${CURRENCY}${(i.sellPrice*i.qty).toFixed(0)}</span></div></div>`;
             }).join('') || '<p class="text-[var(--muted)] text-center py-4 text-sm">Empty</p>';
             
             document.getElementById('cartDiv').innerHTML = cartHtml;
@@ -1737,7 +1741,7 @@
             const printArea = document.getElementById('printArea');
             
             let billText = `*${settings.shopName}*\nBill #: ${tx.id}\nDate: ${new Date(tx.date).toLocaleString()}\nCustomer: ${tx.customerName}\n-------------------\n`;
-            tx.items.forEach(i => { billText += `${i.name} (${i.brand || 'N/A'})\n  ${i.qty} x ${i.price} = ${CURRENCY}${(i.price*i.qty).toFixed(0)}\n`; });
+            tx.items.forEach((i, idx) => { billText += `${idx + 1}. ${i.name} (${i.brand || 'N/A'})\n  ${i.qty} x ${i.price} = ${CURRENCY}${(i.price*i.qty).toFixed(0)}\n`; });
             billText += `-------------------\nSubtotal: ${CURRENCY}${tx.totalDefaultPrice.toFixed(0)}\n`;
             if(tx.totalDiscount > 0) billText += `Discount: -${CURRENCY}${tx.totalDiscount.toFixed(0)}\n`;
             billText += `Bill Total: ${CURRENCY}${tx.total.toFixed(0)}\n`;
@@ -1773,6 +1777,7 @@
                             <div style="font-size: 13px; margin-bottom: 10px; font-weight: bold; background: #f5f5f5; padding: 6px; border-radius: 4px;">Customer: ${tx.customerName} ${tx.customerPhone ? `<span style="font-weight: normal; color: #555; display: block; font-size: 11px;">Ph: ${tx.customerPhone}</span>` : ''}</div>
                             <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
                                 <thead><tr style="border-bottom: 1px solid #000;">
+                                    <th align="center">#</th>
                                     <th align="left" style="padding: 6px 0;">Item (Cat)</th>
                                     <th align="center">Brand</th>
                                     <th align="center">MRP</th>
@@ -1781,8 +1786,9 @@
                                     <th align="right">Amt</th>
                                 </tr></thead>
                                 <tbody>
-                                    ${tx.items.map(i => `
+                                    ${tx.items.map((i, idx) => `
                                         <tr style="border-bottom: 1px solid #eee;">
+                                            <td align="center">${idx + 1}</td>
                                             <td style="padding: 6px 0;">${i.name}<br><span style="font-size:9px; color:#555">${i.categoryName || '-'}</span></td>
                                             <td align="center">${i.brand || '-'}</td>
                                             <td align="center">${i.mrp || '-'}</td>
