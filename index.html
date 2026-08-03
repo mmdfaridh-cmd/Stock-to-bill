@@ -941,7 +941,6 @@
             renderTempPurchaseItems();
         }
 
-        // Fully featured Quick Add Item Modal (Same layout as Items list)
         function openQuickPurItemModal() {
             const cats = (DB.get('categories') || []).sort((a, b) => a.name.localeCompare(b.name));
             openModal(`
@@ -1000,7 +999,7 @@
             const cost = parseFloat(document.getElementById('quickItemCost').value) || 0;
             const price = parseFloat(document.getElementById('quickItemPrice').value) || 0;
             const mrp = parseFloat(document.getElementById('quickItemMrp').value) || 0;
-            const stock = parseInt(document.getElementById('quickItemStock').value) || 0; // Existing stock if any
+            const stock = parseInt(document.getElementById('quickItemStock').value) || 0; 
             
             if(!name) return alert('Name is required');
             if(!categoryId) return alert('Category is required');
@@ -1026,7 +1025,6 @@
             DB.set('items', items);
             window.tmpQuickImg = '';
             
-            // Add to temp purchase items with default qty 1 (editable in cart)
             tempPurchaseItems.push({
                 itemId: newItem.id,
                 itemName: newItem.name,
@@ -1047,7 +1045,6 @@
             const q = (document.getElementById('purScanInput')?.value || '').toLowerCase(); 
             const items = (DB.get('items') || []).filter(i => i.name.toLowerCase().includes(q) || (i.code && i.code.toLowerCase().includes(q))).sort((a, b) => a.name.localeCompare(b.name)); 
 
-            // New Item Card Button (First in list)
             const newItemCard = `
                 <div class="bg-[var(--bg)] border-2 border-dashed border-[var(--success)] rounded-lg overflow-hidden cursor-pointer flex flex-col items-center justify-center text-center p-2 hover:bg-[var(--accent-dim)] active:scale-95 transition-all" onclick="openQuickPurItemModal()" style="min-height: 90px;">
                     <svg width="28" height="28" fill="none" stroke="#198754" stroke-width="2" class="mb-1"><path d="M12 5v14M5 12h14"/></svg>
@@ -1068,7 +1065,6 @@
                 </div>
             `).join('');
 
-            // Prepend the New Item card to the grid
             document.getElementById('purBillItems').innerHTML = newItemCard + itemCards;
         }
 
@@ -1624,7 +1620,18 @@
             if(!confirm('Load this bill into cart for editing? This will void the original bill and restore stock.')) return;
             let items = DB.get('items') || [];
             transaction.items.forEach(cItem => { const idx = items.findIndex(i => i.id === cItem.id); if(idx !== -1) items[idx].stock += cItem.qty; });
-            DB.set('items', items);
+            DB.set('items', items); 
+            
+            // Revert customer balance if it was a credit sale to prevent duplicate addition when saving
+            if(transaction.type === 'credit' && transaction.customerId) { 
+                let custs = DB.get('customers'); 
+                const cIdx = custs.findIndex(c => c.id == transaction.customerId); 
+                if(cIdx !== -1) { 
+                    custs[cIdx].balance -= transaction.total; 
+                    DB.set('customers', custs); 
+                } 
+            }
+            
             DB.set('transactions', tx.filter(t => t.id !== txId));
             cart = transaction.items.map(i => ({...i, stock: items.find(it => it.id === i.id)?.stock || 0, defaultPrice: i.defaultPrice || i.price, sellPrice: i.price, mrp: i.mrp || i.price, brand: i.brand || '' }));
             renderBilling(true, transaction.customerId);
