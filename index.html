@@ -941,6 +941,7 @@
             renderTempPurchaseItems();
         }
 
+        // Fully featured Quick Add Item Modal (Same layout as Items list)
         function openQuickPurItemModal() {
             const cats = (DB.get('categories') || []).sort((a, b) => a.name.localeCompare(b.name));
             openModal(`
@@ -999,7 +1000,7 @@
             const cost = parseFloat(document.getElementById('quickItemCost').value) || 0;
             const price = parseFloat(document.getElementById('quickItemPrice').value) || 0;
             const mrp = parseFloat(document.getElementById('quickItemMrp').value) || 0;
-            const stock = parseInt(document.getElementById('quickItemStock').value) || 0; 
+            const stock = parseInt(document.getElementById('quickItemStock').value) || 0; // Existing stock if any
             
             if(!name) return alert('Name is required');
             if(!categoryId) return alert('Category is required');
@@ -1025,6 +1026,7 @@
             DB.set('items', items);
             window.tmpQuickImg = '';
             
+            // Add to temp purchase items with default qty 1 (editable in cart)
             tempPurchaseItems.push({
                 itemId: newItem.id,
                 itemName: newItem.name,
@@ -1045,6 +1047,7 @@
             const q = (document.getElementById('purScanInput')?.value || '').toLowerCase(); 
             const items = (DB.get('items') || []).filter(i => i.name.toLowerCase().includes(q) || (i.code && i.code.toLowerCase().includes(q))).sort((a, b) => a.name.localeCompare(b.name)); 
 
+            // New Item Card Button (First in list)
             const newItemCard = `
                 <div class="bg-[var(--bg)] border-2 border-dashed border-[var(--success)] rounded-lg overflow-hidden cursor-pointer flex flex-col items-center justify-center text-center p-2 hover:bg-[var(--accent-dim)] active:scale-95 transition-all" onclick="openQuickPurItemModal()" style="min-height: 90px;">
                     <svg width="28" height="28" fill="none" stroke="#198754" stroke-width="2" class="mb-1"><path d="M12 5v14M5 12h14"/></svg>
@@ -1065,6 +1068,7 @@
                 </div>
             `).join('');
 
+            // Prepend the New Item card to the grid
             document.getElementById('purBillItems').innerHTML = newItemCard + itemCards;
         }
 
@@ -1618,18 +1622,20 @@
             const transaction = tx.find(t => t.id === txId);
             if(!transaction) return;
             if(!confirm('Load this bill into cart for editing? This will void the original bill and restore stock.')) return;
-            let items = DB.get('items') || [];
-            transaction.items.forEach(cItem => { const idx = items.findIndex(i => i.id === cItem.id); if(idx !== -1) items[idx].stock += cItem.qty; });
-            DB.set('items', items); 
             
-            // Revert customer balance if it was a credit sale to prevent duplicate addition when saving
-            if(transaction.type === 'credit' && transaction.customerId) { 
-                let custs = DB.get('customers'); 
-                const cIdx = custs.findIndex(c => c.id == transaction.customerId); 
-                if(cIdx !== -1) { 
-                    custs[cIdx].balance -= transaction.total; 
-                    DB.set('customers', custs); 
-                } 
+            let items = DB.get('items') || [];
+            // Restore stock
+            transaction.items.forEach(cItem => { const idx = items.findIndex(i => i.id === cItem.id); if(idx !== -1) items[idx].stock += cItem.qty; });
+            DB.set('items', items);
+            
+            // Revert customer balance if it was a credit sale
+            if(transaction.type === 'credit' && transaction.customerId) {
+                let custs = DB.get('customers') || [];
+                const cIdx = custs.findIndex(c => c.id == transaction.customerId);
+                if(cIdx !== -1) {
+                    custs[cIdx].balance = (custs[cIdx].balance || 0) - transaction.total;
+                    DB.set('customers', custs);
+                }
             }
             
             DB.set('transactions', tx.filter(t => t.id !== txId));
@@ -2477,7 +2483,7 @@
                                     <div class="flex justify-between items-center p-2 bg-[var(--bg)] rounded text-xs">
                                         <div>
                                             <span class="font-medium">${t.type}</span>: ${t.data.name || '#' + t.data.id}<br>
-                                            <span class="text-[var(--muted)]">${Math.floor((new Date() - new Date(t.deletedAt))/(1000*60*60*24))}d ago</span>
+                                            <span class="text-[var(--muted)]">${Math.floor((new Date() - new Date(t.deletedAt))/(1000*60*60*24)}d ago</span>
                                         </div>
                                         <button onclick="restoreFromTrash(${i})" class="btn btn-success text-xs py-1 px-2">Restore</button>
                                     </div>
