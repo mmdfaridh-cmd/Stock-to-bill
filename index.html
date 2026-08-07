@@ -337,9 +337,18 @@
             const users = DB.get('users') || [];
             const user = users.find(x => x.username === u && x.password === p);
             if (user) {
-                if (isAdminChecked && user.role !== 'admin') { document.getElementById('loginError').textContent = "User is not an Admin"; document.getElementById('loginError').classList.remove('hidden'); return; }
+                if (isAdminChecked && user.role !== 'admin') { 
+                    document.getElementById('loginError').textContent = "User is not an Admin"; 
+                    document.getElementById('loginError').classList.remove('hidden'); 
+                    setTimeout(() => document.getElementById('loginError').classList.add('hidden'), 3000);
+                    return; 
+                }
                 currentUser = user; DB.set('currentUser', user); showApp();
-            } else { document.getElementById('loginError').textContent = "Invalid credentials"; document.getElementById('loginError').classList.remove('hidden'); setTimeout(() => document.getElementById('loginError').classList.remove('hidden'), 3000); }
+            } else { 
+                document.getElementById('loginError').textContent = "Invalid credentials"; 
+                document.getElementById('loginError').classList.remove('hidden'); 
+                setTimeout(() => document.getElementById('loginError').classList.add('hidden'), 3000); 
+            }
         }
         function handleLogout() { DB.remove('currentUser'); location.reload(); }
         
@@ -1006,8 +1015,9 @@
             if(!categoryId) return alert('Category is required');
             
             let items = DB.get('items') || [];
-            if(items.some(i => i.name.toLowerCase() === name.toLowerCase())) {
-                return alert("Item already exists. Please search for it instead.");
+            // Check duplicate based on name AND category
+            if(items.some(i => i.name.toLowerCase() === name.toLowerCase() && i.categoryId === categoryId)) {
+                return alert("Item with same name and category already exists. Please search for it instead.");
             }
             
             const newItem = {
@@ -1628,12 +1638,13 @@
             transaction.items.forEach(cItem => { const idx = items.findIndex(i => i.id === cItem.id); if(idx !== -1) items[idx].stock += cItem.qty; });
             DB.set('items', items);
             
-            // Revert customer balance if it was a credit sale
+            // REVERSE CUSTOMER BALANCE IF CREDIT
             if(transaction.type === 'credit' && transaction.customerId) {
                 let custs = DB.get('customers') || [];
                 const cIdx = custs.findIndex(c => c.id == transaction.customerId);
                 if(cIdx !== -1) {
-                    custs[cIdx].balance = (custs[cIdx].balance || 0) - transaction.total;
+                    custs[cIdx].balance -= transaction.total;
+                    if(custs[cIdx].balance < 0) custs[cIdx].balance = 0;
                     DB.set('customers', custs);
                 }
             }
@@ -1890,7 +1901,7 @@
                 let items = DB.get('items') || []; 
                 transaction.items.forEach(txItem => { const itemIdx = items.findIndex(i => i.id === txItem.id); if (itemIdx !== -1) items[itemIdx].stock += txItem.qty; }); 
                 DB.set('items', items); 
-                if(transaction.type === 'credit' && transaction.customerId) { let custs = DB.get('customers'); const cIdx = custs.findIndex(c => c.id == transaction.customerId); if(cIdx !== -1) { custs[cIdx].balance -= transaction.total; DB.set('customers', custs); } } 
+                if(transaction.type === 'credit' && transaction.customerId) { let custs = DB.get('customers'); const cIdx = custs.findIndex(c => c.id == transaction.customerId); if(cIdx !== -1) { custs[cIdx].balance -= transaction.total; if(custs[cIdx].balance < 0) custs[cIdx].balance = 0; DB.set('customers', custs); } } 
                 moveToTrash('transaction', transaction); 
                 DB.set('transactions', txx.filter(t => t.id !== id)); 
                 if(fromPage === 'billing') renderBilling(); else renderReports(); 
@@ -2483,7 +2494,7 @@
                                     <div class="flex justify-between items-center p-2 bg-[var(--bg)] rounded text-xs">
                                         <div>
                                             <span class="font-medium">${t.type}</span>: ${t.data.name || '#' + t.data.id}<br>
-                                            <span class="text-[var(--muted)]">${Math.floor((new Date() - new Date(t.deletedAt))/(1000*60*60*24)}d ago</span>
+                                            <span class="text-[var(--muted)]">${Math.floor((new Date() - new Date(t.deletedAt))/(1000*60*60*24))}d ago</span>
                                         </div>
                                         <button onclick="restoreFromTrash(${i})" class="btn btn-success text-xs py-1 px-2">Restore</button>
                                     </div>
